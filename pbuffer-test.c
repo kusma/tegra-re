@@ -2,6 +2,11 @@
 #include <EGL/egl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#ifndef GL_PROGRAM_BINARY_LENGTH_OES
+#define GL_PROGRAM_BINARY_LENGTH_OES 0x8741
+#endif
 
 static char *egl_strerror(EGLint err)
 {
@@ -31,10 +36,22 @@ void egl_perror(const char *str)
         fprintf(stderr, "%s: %s\n", str, egl_strerror(eglGetError()));
 }
 
+#include <stdarg.h>
+void die(const char *fmt, ...)
+{
+	va_list va;
+	va_start(va, fmt);
+	fputs("fatal: ", stderr);
+	vfprintf(stderr, fmt, va);
+	fputc('\n', stderr);
+	va_end(va);
+	exit(1);
+}
+
 void render(void)
 {
 	GLenum err;
-	GLint status, vbo;
+	GLint status, vbo, bin_len;
 	GLint vs = glCreateShader(GL_VERTEX_SHADER),
 	    fs = glCreateShader(GL_FRAGMENT_SHADER),
 	    p = glCreateProgram();
@@ -55,22 +72,36 @@ void render(void)
 
 	static const GLfloat verts[] = { 0.0, 0.0, 0.0 };
 
-	fprintf(stderr, "*** START COMPILING\n");
+	fprintf(stderr, "*** START COMPILING (%d %d)\n", strlen(vs_str), strlen(fs_str));
 	glShaderSource(vs, 1, &vs_str, NULL);
 	glShaderSource(fs, 1, &fs_str, NULL);
-	glCompileShader(vs);
+	
+	fprintf(stderr, "*** START COMPILING 2\n");
 	glCompileShader(fs);
+	fprintf(stderr, "*** START COMPILING 3\n");
+	glCompileShader(vs);
+	fprintf(stderr, "*** STOP COMPILING\n");
 	glAttachShader(p, vs);
 	glAttachShader(p, fs);
 	glLinkProgram(p);
 	fprintf(stderr, "*** STOP COMPILING\n");
 
 	glGetProgramiv(p, GL_LINK_STATUS, &status);
-	if (!status) {
-		fprintf(stderr, "failed to link\n");
-		exit(1);
+	if (!status)
+		die("failed to link");
+
+#if 0
+	bin_len = 0;	
+	glGetProgramiv(p, GL_PROGRAM_BINARY_LENGTH_OES, &bin_len);
+	printf("binary length: %d\n", bin_len);
+	{
+		char buf[10000];
+		GLenum format = 0;
+		int len = 0;
+		glGetProgramBinaryOES(p, sizeof(buf), &len, &format, buf);
 	}
 
+#endif
 	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
@@ -80,12 +111,13 @@ void render(void)
 	fprintf(stderr, "*** DRAW 1 POINT\n");
 	glDrawArrays(GL_POINTS, 0, 1);
 	glFlush();
+	fprintf(stderr, "*** DRAW 1 POINT\n");
+	glDrawArrays(GL_POINTS, 0, 1);
+	glFlush();
 
 	err = glGetError();
-	if (err) {
-		fprintf(stderr, "GL error: 0x%x\n", err);
-		exit(1);
-	}
+	if (err)
+		die("GL error: 0x%x", err);
 
 	fprintf(stderr, "*** CLEAR 1 0 1\n");
 	fflush(stderr);
@@ -97,6 +129,7 @@ void render(void)
 	fflush(stderr);
 	glClearColor(1.0, 0.0, 1.0, 1.0);
 	glClear(GL_COLOR_BUFFER_BIT);
+	glDrawArrays(GL_POINTS, 0, 1);
 	glFlush();
 /*
 	fprintf(stderr, "FLUSH\n");
@@ -164,5 +197,8 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	printf("%s\n", glGetString(GL_EXTENSIONS));
+
 	render();
 }
+
