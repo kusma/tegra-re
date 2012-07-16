@@ -15,7 +15,7 @@
 extern const struct open_hook open_hooks[];
 extern const int num_open_hooks;
 
-struct ioctl_funcs ioctl_hooks[1024];
+static struct funcs hooks[1024];
 
 extern void *__libc_dlsym(void *, const char *);
 
@@ -56,7 +56,7 @@ int open(const char* path, int flags, ...)
 		/* install ioctl-hooks */
 		for (i = 0; i < num_open_hooks; ++i)
 			if (!strcmp(path, open_hooks[i].path)) {
-				ioctl_hooks[fd] = open_hooks[i].ioctl_hooks;
+				hooks[fd] = open_hooks[i].hooks;
 				break;
 			}
 	}
@@ -83,20 +83,39 @@ int ioctl(int fd, int request, ...)
 		ptr = va_arg(va, void *);
 		va_end(va);
 
-		if (fd >= 0 && fd < 1024 && ioctl_hooks[fd].pre_fn)
-			ioctl_hooks[fd].pre_fn(fd, request, ptr);
+		if (fd >= 0 && fd < 1024 && hooks[fd].ioctl_pre_fn)
+			hooks[fd].ioctl_pre_fn(fd, request, ptr);
 		ret = orig_ioctl(fd, request, ptr);
-		if (fd >= 0 && fd < 1024 && ioctl_hooks[fd].post_fn)
-			ioctl_hooks[fd].post_fn(ret, fd, request, ptr);
+		if (fd >= 0 && fd < 1024 && hooks[fd].ioctl_post_fn)
+			hooks[fd].ioctl_post_fn(ret, fd, request, ptr);
 	} else {
 		/* no payload */
-		if (fd >= 0 && fd < 1024 && ioctl_hooks[fd].pre_fn)
-			ioctl_hooks[fd].pre_fn(fd, request);
+		if (fd >= 0 && fd < 1024 && hooks[fd].ioctl_pre_fn)
+			hooks[fd].ioctl_pre_fn(fd, request);
 		ret = orig_ioctl(fd, request);
-		if (fd >= 0 && fd < 1024 && ioctl_hooks[fd].post_fn)
-			ioctl_hooks[fd].post_fn(ret, fd, request);
+		if (fd >= 0 && fd < 1024 && hooks[fd].ioctl_post_fn)
+			hooks[fd].ioctl_post_fn(ret, fd, request);
 	}
 
 	return ret;	
+}
+
+ssize_t write(int fd, const void *buf, size_t count)
+{
+	ssize_t ret;
+	static ssize_t (*orig_write)(int fd, const void *buf, size_t count) = NULL;
+
+	if (!orig_write)
+		orig_write = libc_dlsym("write");
+
+	if (fd >= 0 && fd < 1024 && hooks[fd].write_pre_fn)
+		hooks[fd].write_pre_fn(fd, buf, count);
+
+	ret = orig_write(fd, buf, count);
+
+	if (fd >= 0 && fd < 1024 && hooks[fd].write_post_fn)
+		hooks[fd].write_post_fn(ret, fd, buf, count);
+
+	return ret;
 }
 

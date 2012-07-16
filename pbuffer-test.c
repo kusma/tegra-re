@@ -102,19 +102,22 @@ void render(void)
 	}
 
 #endif
-	glGenBuffers(1, &vbo);
+/*	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW); */
 
 	glUseProgram(p);
-	glVertexAttribPointer(glGetAttribLocation(p, "pos"), 3, GL_FLOAT, GL_FALSE, 0, NULL);
+/*	glVertexAttribPointer(glGetAttribLocation(p, "pos"), 3, GL_FLOAT, GL_FALSE, 0, NULL); */
 	fprintf(stderr, "*** DRAW 1 POINT\n");
 	glDrawArrays(GL_POINTS, 0, 1);
 	glFlush();
 	fprintf(stderr, "*** DRAW 1 POINT\n");
 	glDrawArrays(GL_POINTS, 0, 1);
 	glFlush();
-
+	fprintf(stderr, "*** DRAW 2 POINTS\n");
+	glDrawArrays(GL_POINTS, 0, 2);
+	glFlush();
+/*
 	err = glGetError();
 	if (err)
 		die("GL error: 0x%x", err);
@@ -131,18 +134,19 @@ void render(void)
 	glClear(GL_COLOR_BUFFER_BIT);
 	glDrawArrays(GL_POINTS, 0, 1);
 	glFlush();
+*/
 /*
 	fprintf(stderr, "FLUSH\n");
 	fflush(stderr); */
 
 /*	glFinish(); */
-	fprintf(stderr, "*** READPIXELS\n");
+/*	fprintf(stderr, "*** READPIXELS\n");
 	fflush(stderr);
 	GLubyte data[4];
 	glReadPixels(0, 0, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	fprintf(stderr, "*** STOP RENDER\n");
 	fflush(stderr);
-	printf("%d %d %d %d\n", data[0], data[1], data[2], data[3]);
+	printf("%d %d %d %d\n", data[0], data[1], data[2], data[3]); */
 }
 
 int main(int argc, char *argv[])
@@ -200,5 +204,10 @@ int main(int argc, char *argv[])
 	printf("%s\n", glGetString(GL_EXTENSIONS));
 
 	render();
+
+	eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+	eglDestroyContext(dpy, ctx);
+	eglDestroySurface(dpy, surf);
+	eglTerminate(dpy);
 }
 

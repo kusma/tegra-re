@@ -36,12 +36,11 @@ struct CgCtx {
 	unsigned int unknown00;
 	const char *error;       /* error string */
 	const char *log;         /* compile log */
-#if 0
 	size_t        unknown12; /* size of... something! The driver mallocs a buffer of this size right on return. */
 	void         *unknown16; /* pointer (0x248 bytes) */
 	unsigned int  unknown20; /* small int (1) */
-	void         *unknown24; /* pointer (0x220 bytes) */
-	unsigned int  unknown28; /* size of unknown6 */
+	void         *binary;
+	size_t        binary_size;
 	void         *unknown32; /* pointer */
 	unsigned int  unknown36; /* NULL / 0x0*/
 	unsigned int  unknown40; /* huge value (0x40a273d0) */
@@ -54,21 +53,40 @@ struct CgCtx {
 	unsigned int  unknown68; /* NULL / 0x0 */
 	unsigned int  unknown72; /* small int (1) */
 	unsigned int  unknown76; /* NULL / 0x0 */
-#else
- 	unsigned int unknown12[17];
-#endif
 };
+
+void hexdump(const void *data, int size);
 
 static void dump_ctx(struct CgCtx *ctx)
 {
 	int i;
 	fprintf(stderr, "ctx:\n---8<---\n");
-	fprintf(stderr, "unknown0 = %08x\n", ctx->unknown00);
+	fprintf(stderr, "unknown00 = %08x\n", ctx->unknown00);
 	fprintf(stderr, "error: %s\n", ctx->error ? ctx->error : "<no error>");
 	fprintf(stderr, "log: %s\n", ctx->log ? ctx->log : "<no log>");
+#if 0
 	for (i = 0; i < 17; ++i) {
 		fprintf(stderr, "unknown%d = %08x\n", 12 + i * 4, ctx->unknown12[i]);
 	} 
+#else
+	fprintf(stderr, "unknown12 = %zu\n", ctx->unknown12);
+	fprintf(stderr, "unknown16 = %p\n", ctx->unknown16);
+	fprintf(stderr, "unknown20 = %08x\n", ctx->unknown20);
+	fprintf(stderr, "binary (%d bytes) =\n", ctx->binary_size);
+	hexdump(ctx->binary, ctx->binary_size);
+	fprintf(stderr, "unknown32 = %p\n", ctx->unknown32);
+	fprintf(stderr, "unknown36 = %08x\n", ctx->unknown36);
+	fprintf(stderr, "unknown40 = %08x\n", ctx->unknown40);
+	fprintf(stderr, "unknown44 = %p\n", ctx->unknown44);
+	fprintf(stderr, "unknown48 = %08x\n", ctx->unknown48);
+	fprintf(stderr, "unknown52 = %08x\n", ctx->unknown52);
+	fprintf(stderr, "unknown56 = %p\n", ctx->unknown56);
+	fprintf(stderr, "unknown60 = %08x\n", ctx->unknown60);
+	fprintf(stderr, "unknown64 = %08x\n", ctx->unknown64);
+	fprintf(stderr, "unknown68 = %08x\n", ctx->unknown68);
+	fprintf(stderr, "unknown72 = %08x\n", ctx->unknown72);
+	fprintf(stderr, "unknown76 = %08x\n", ctx->unknown76);
+#endif
 /*	fprintf(stderr, "HMMM: %08x\n", ctx->unknown1[9]);
 	fprintf(stderr, "HMMM2: %08x\n", &ctx->unknown1[8]);
 	fprintf(stderr, "HMMM2: %08x\n", ctx->unknown1[8]); */
@@ -99,6 +117,8 @@ int CgDrv_Compile(struct CgCtx *ctx, int b, enum shader_type type, const char *s
 	fprintf(stderr, " = %d\n", ret);
 	if (ctx->error)
 		fprintf(stderr, "error:\n---8<---\n%s---8<---\n", ctx->error);
+	fprintf(stderr, "called from: %p\n", __builtin_return_address(0));
+
 	dump_ctx(ctx);
 	return ret;
 }

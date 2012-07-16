@@ -19,7 +19,7 @@ static int wrap_log(const char *format, ...)
 	return ret;
 }
 
-static void hexdump(const void *data, int size)
+void hexdump(const void *data, int size)
 {
 	unsigned char *buf = (void *) data;
 	char alpha[17];
@@ -67,42 +67,13 @@ void *libc_dlsym(const char *name)
 	return ret;
 }
 
-#define NVMAP_IOC_CREATE 0xc0084e00
-#if 0
-#define NVMAP_IOC_CLAIM 0xc0084e01
-    NVMAP_IOC_FROM_ID = 0xc0084e02
-
-    NVMAP_IOC_ALLOC = 0x40104e03
-    NVMAP_IOC_FREE = 0x4e04
-    NVMAP_IOC_MMAP = 0xc0184e05
-    NVMAP_IOC_WRITE = 0x40204e06
-    NVMAP_IOC_READ = 0x40204e07
-    NVMAP_IOC_PARAM = 0xc0104e08
-    NVMAP_IOC_PIN_MULT = 0xc0184e0a
-    NVMAP_IOC_UNPIN_MULT = 0x40184e0b
-    NVMAP_IOC_CACHE = 0x40184e0c
-    NVMAP_IOC_GET_ID = 0xc0084e0d
-#endif
-
 #include <asm/types.h>
-struct nvmap_create_handle {
-	union {
-		__u32 key;      /* ClaimPreservedHandle */
-		__u32 id;       /* FromId */
-		__u32 size;     /* CreateHandle */
-	};
-	__u32 handle;
-};
-
-static void dump_create_handle(struct nvmap_create_handle *ch)
-{
-	wrap_log("%p = struct nvmap_create_handle {\n\t{ 0x%x },\n\t0x%x\n};\n",
-	    ch, ch->key, ch->handle);
-}
+#include <nvmap_ioctl.h>
 
 static int nvmap_ioctl_pre(int fd, int request, ...)
 {
-	struct nvmap_create_handle *ch;
+	struct nvmap_alloc_handle *ah;
+	struct nvmap_rw_handle *rwh;
 	void *ptr = NULL;
 	if (_IOC_SIZE(request)) {
 		/* find pointer to payload */
@@ -114,20 +85,35 @@ static int nvmap_ioctl_pre(int fd, int request, ...)
 
 	switch (request) {
 	case NVMAP_IOC_CREATE:
-		ch = (struct nvmap_create_handle *)ptr;
-		dump_create_handle(ch);
-		wrap_log("ioctl(%d, NVMAP_IOC_CREATE, %p)", fd, ptr);
+	case NVMAP_IOC_FREE:
+	case NVMAP_IOC_PIN_MULT:
 		break;
+
+	case NVMAP_IOC_ALLOC:
+		ah = ptr;
+		wrap_log("Alloc(0x%x, 0x%x, 0x%x, %d)", ah->handle,
+		    ah->heap_mask, ah->flags, ah->align);
+		break;
+
+	case NVMAP_IOC_WRITE:
+		rwh = ptr;
+		wrap_log("%p:\n", rwh->addr);
+		hexdump((void *)rwh->addr, rwh->elem_size);
+		wrap_log("Write(%p, 0x%x, 0x%x, %d, %d, %d, %d)", rwh->addr,
+		    rwh->handle, rwh->offset, rwh->elem_size, rwh->hmem_stride,
+		    rwh->user_stride, rwh->count);
+		break;
+
 	default:
-		wrap_log("ioctl(%d, 0x%x, ...)", fd, request);
+		wrap_log("ioctl(%d (/dev/nvmap), 0x%x (%d), ...)", fd, request, _IOC_NR(request));
 	}
 }
 
 static int nvmap_ioctl_post(int ret, int fd, int request, ...)
 {
 	struct nvmap_create_handle *ch;
+	struct nvmap_pin_handle *ph;
 	void *ptr = NULL;
-	wrap_log(" = %d\n", ret);
 
 	if (_IOC_SIZE(request)) {
 		/* find pointer to payload */
@@ -139,51 +125,147 @@ static int nvmap_ioctl_post(int ret, int fd, int request, ...)
 
 	switch (request) {
 	case NVMAP_IOC_CREATE:
-		ch = (struct nvmap_create_handle *)ptr;
-		wrap_log("returned handle: %p\n", fd, ch->handle);
+		ch = ptr;
+		wrap_log("0x%x = CreateHandle(%d) = %d\n", ch->handle, ch->size, ret);
 		break;
+
+	case NVMAP_IOC_FREE:
+		wrap_log("FreeHandle(0x%x) = %d\n", (int)ptr, ret);
+		break;
+
+	case NVMAP_IOC_PIN_MULT:
+		ph = ptr;
+		if (ph->count > 1) {
+			hexdump((void *)ph->handles, ph->count * sizeof(unsigned long *));
+			wrap_log("PinMultiple(0x%x, %d) = %p\n", ph->handles, ph->count, ph->addr);
+		} else
+			wrap_log("PinSingle(0x%x) = %p\n", ph->handles, ph->addr);
+		break;
+
+	default:
+		wrap_log(" = %d\n", ret);
 	}
 }
 
-const struct open_hook open_hooks[] = {
-	{ "/dev/nvmap", { nvmap_ioctl_pre, nvmap_ioctl_post } }
-};
-const int num_open_hooks = sizeof(open_hooks) / sizeof(*open_hooks);
-
-#if 0
-int nvmap_ioctl_pre(int fd, int request, ...)
+#include <nvhost_ioctl.h>
+static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
 {
-	int ret, i;
-	size_t ioc_size = _IOC_SIZE(request);
-	if (ioc_size) {
-		void *ptr;
-		va_list va;
-
+	struct nvhost_set_nvmap_fd_args *fdargs;
+	void *ptr = NULL;
+	if (_IOC_SIZE(request)) {
 		/* find pointer to payload */
+		va_list va;
 		va_start(va, request);
 		ptr = va_arg(va, void *);
 		va_end(va);
-
-		/* dump payload */
-		hexdump(ptr, ioc_size);
-
-		if (dev_nvmap_fd >= 0 && dev_nvmap_fd == fd)
-			wrap_log("ioctl(%d, 0x%x, %p) = ", fd, request, ptr);
-		ret = orig_ioctl(fd, request, ptr);
-		
-	} else {
-		/* no payload */
-		if (dev_nvmap_fd >= 0 && dev_nvmap_fd == fd)
-			wrap_log("ioctl(%d, 0x%x) = ", fd, request);
-		ret = orig_ioctl(fd, request);
 	}
 
-	if (dev_nvmap_fd >= 0 && dev_nvmap_fd == fd)
-		fprintf(stderr, "%d\n", ret);
+	switch (request) {
+	case NVHOST_IOCTL_CHANNEL_FLUSH:
+		wrap_log("ioctl(%d (/dev/nvhost-gr3d), NVHOST_IOCTL_CHANNEL_FLUSH, ...)", fd);
+		break;
 
-	return ret;	
+	case NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD:
+		fdargs = ptr;
+		wrap_log("ioctl(%d (/dev/nvhost-gr3d), NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD, %d)", fd, fdargs->fd);
+		break;
+
+	default:
+		wrap_log("ioctl(%d (/dev/nvhost-gr3d), 0x%x (%d), ...)", fd, request, _IOC_NR(request));
+	}
 }
-#endif
+
+static int nvhost_gr3d_ioctl_post(int ret, int fd, int request, ...)
+{
+	void *ptr = NULL;
+
+	if (_IOC_SIZE(request)) {
+		/* find pointer to payload */
+		va_list va;
+		va_start(va, request);
+		ptr = va_arg(va, void *);
+		va_end(va);
+	}
+
+	switch (request) {
+	default:
+		wrap_log(" = %d\n", ret);
+	}
+}
+
+ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
+{
+	static struct nvhost_submit_hdr hdr;
+	const unsigned char *curr = ptr;
+	size_t remaining = count;
+
+	hexdump(ptr, count);
+	wrap_log("write(%d (/dev/nvhost-gr3d), %p, %d)\n", fd, ptr, count);
+
+	while (1) {
+		if (!hdr.num_cmdbufs && !hdr.num_relocs) {
+
+			if (remaining < sizeof(hdr))
+				break;
+
+			memcpy(&hdr, curr, sizeof(hdr));
+			curr += sizeof(hdr);
+			remaining -= sizeof(hdr);
+
+			wrap_log("hdr:\n");
+			wrap_log("\thdr.syncpt_id = %d\n", hdr.syncpt_id);
+			wrap_log("\thdr.syncpt_incrs = %d\n", hdr.syncpt_incrs);
+			wrap_log("\thdr.num_cmdbufs = %d\n", hdr.num_cmdbufs);
+			wrap_log("\thdr.num_relocs = %d\n", hdr.num_relocs);
+		} else if (hdr.num_cmdbufs) {
+			struct nvhost_cmdbuf cmdbuf;
+
+			if (remaining < sizeof(cmdbuf))
+				break;
+
+			memcpy(&cmdbuf, curr, sizeof(cmdbuf));
+			curr += sizeof(cmdbuf);
+			remaining -= sizeof(cmdbuf);
+			--hdr.num_cmdbufs;
+
+			wrap_log("cmdbuf(%d left):\n", hdr.num_cmdbufs);
+			wrap_log("\tcmdbuf.mem = %p\n", cmdbuf.mem);
+			wrap_log("\tcmdbuf.offset = %d\n", cmdbuf.offset);
+			wrap_log("\tcmdbuf.words = %d\n", cmdbuf.words);
+		} else if (hdr.num_relocs) {
+			struct nvhost_reloc reloc;
+
+			if (remaining < sizeof(reloc))
+				break;
+
+			memcpy(&reloc, curr, sizeof(reloc));
+			curr += sizeof(reloc);
+			remaining -= sizeof(reloc);
+			--hdr.num_relocs;
+			
+			wrap_log("reloc:\n");
+			wrap_log("\tcmdbuf_mem = %p\n", reloc.cmdbuf_mem);
+			wrap_log("\tcmdbuf_offset = %d\n", reloc.cmdbuf_offset);
+			wrap_log("\ttarget = %p\n", reloc.target);
+			wrap_log("\ttarget_offset = %d\n", reloc.target_offset);
+		}
+	}
+}
+
+ssize_t nvhost_gr3d_write_post(int ret, int fd, const void *ptr, size_t count)
+{
+	wrap_log("kernel-driver returned: = %d\n", ret);	
+}
+
+const struct open_hook open_hooks[] = {
+	{ "/dev/nvmap", { nvmap_ioctl_pre, nvmap_ioctl_post } },
+	{ "/dev/nvhost-gr3d", {
+		nvhost_gr3d_ioctl_pre, nvhost_gr3d_ioctl_post,
+		nvhost_gr3d_write_pre, nvhost_gr3d_write_post
+	}}
+};
+const int num_open_hooks = sizeof(open_hooks) / sizeof(*open_hooks);
+
 
 /*
 extern void *__libc_malloc(size_t size);
