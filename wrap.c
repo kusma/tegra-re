@@ -70,10 +70,15 @@ void *libc_dlsym(const char *name)
 #include <asm/types.h>
 #include <nvmap_ioctl.h>
 
+static struct nvmap_map_caller mappings[100];
+static int num_mappings = 0;
+
 static int nvmap_ioctl_pre(int fd, int request, ...)
 {
 	struct nvmap_alloc_handle *ah;
 	struct nvmap_rw_handle *rwh;
+	struct nvmap_map_caller *mc;
+
 	void *ptr = NULL;
 	if (_IOC_SIZE(request)) {
 		/* find pointer to payload */
@@ -93,6 +98,12 @@ static int nvmap_ioctl_pre(int fd, int request, ...)
 		ah = ptr;
 		wrap_log("Alloc(0x%x, 0x%x, 0x%x, %d)", ah->handle,
 		    ah->heap_mask, ah->flags, ah->align);
+		break;
+
+	case NVMAP_IOC_MMAP:
+		mc = ptr;
+		mappings[num_mappings++] = *mc;
+		wrap_log("MMap(0x%x, 0x%x, %d, 0x%x, %p)", mc->handle, mc->offset, mc->length, mc->flags, mc->addr);
 		break;
 
 	case NVMAP_IOC_WRITE:
@@ -138,6 +149,7 @@ static int nvmap_ioctl_post(int ret, int fd, int request, ...)
 		if (ph->count > 1) {
 			hexdump((void *)ph->handles, ph->count * sizeof(unsigned long *));
 			wrap_log("PinMultiple(0x%x, %d) = %p\n", ph->handles, ph->count, ph->addr);
+			hexdump((void *)ph->addr, ph->count * sizeof(unsigned long *));
 		} else
 			wrap_log("PinSingle(0x%x) = %p\n", ph->handles, ph->addr);
 		break;
@@ -198,6 +210,12 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 	static struct nvhost_submit_hdr hdr;
 	const unsigned char *curr = ptr;
 	size_t remaining = count;
+	int i;
+
+	static int (*orig_ioctl)(int fd, int request, ...) = NULL;
+
+	if (!orig_ioctl)
+		orig_ioctl = libc_dlsym("ioctl");
 
 	hexdump(ptr, count);
 	wrap_log("write(%d (/dev/nvhost-gr3d), %p, %d)\n", fd, ptr, count);
@@ -232,6 +250,18 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			wrap_log("\tcmdbuf.mem = %p\n", cmdbuf.mem);
 			wrap_log("\tcmdbuf.offset = %d\n", cmdbuf.offset);
 			wrap_log("\tcmdbuf.words = %d\n", cmdbuf.words);
+			for (i = 0; i < num_mappings; ++i) {
+				unsigned char *ptr;
+				if (mappings[i].handle != cmdbuf.mem)
+					continue;
+			/*	if (mappings[i].offset > cmdbuf.offset)
+					continue; */
+				ptr = mappings[i].addr;
+				/* hexdump(ptr, mappings->length); */
+				ptr -= mappings[i].offset;
+				ptr += cmdbuf.offset;
+				hexdump(ptr, cmdbuf.words * 4);
+			}
 		} else if (hdr.num_relocs) {
 			struct nvhost_reloc reloc;
 
