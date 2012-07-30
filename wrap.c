@@ -1,5 +1,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <linux/ioctl.h>
 #include <dlfcn.h>
@@ -7,26 +8,35 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
+#include <asm/types.h>
+#include <nvmap_ioctl.h>
+
 #include "hook.h"
+
+int enable_logging;
 
 static int wrap_log(const char *format, ...)
 {
 	va_list args;
 	int ret;
+
+	if (!enable_logging)
+		return 0;
+
 	va_start(args, format);
 	ret = vfprintf(stderr, format, args);
 	va_end(args);
 	return ret;
 }
 
-void hexdump(const void *data, int size)
+void do_hexdump(const void *data, int offset, int size)
 {
 	unsigned char *buf = (void *) data;
 	char alpha[17];
 	int i;
 	for (i = 0; i < size; i++) {
 		if (!(i % 16))
-			wrap_log("\t\t%08X", (unsigned int) buf + i);
+			wrap_log("\t\t%08X", (unsigned int) offset + i);
 		if (((void *) (buf + i)) < ((void *) data)) {
 			wrap_log("   ");
 			alpha[i % 16] = '.';
@@ -67,8 +77,44 @@ void *libc_dlsym(const char *name)
 	return ret;
 }
 
-#include <asm/types.h>
-#include <nvmap_ioctl.h>
+void hexdump(const void *data, int size)
+{
+	do_hexdump(data, (long)data, size);
+}
+
+int nvmap_fd = -1;
+
+void hexdump_handle(long handle, int offset, int size)
+{
+	int err;
+	void *buf;
+	struct nvmap_rw_handle rwh = {
+		.handle = handle,
+		.offset = offset,
+		.elem_size = size,
+		.hmem_stride = size,
+		.user_stride = size,
+		.count = 1
+	};
+	static int (*ioctl)(int fd, int request, ...) = NULL;
+
+	if (nvmap_fd < 0)
+		return;
+
+	if (!ioctl)
+		ioctl = libc_dlsym("ioctl");
+
+	buf = malloc(size);
+	rwh.addr = (unsigned long)buf;
+	if ((err = ioctl(nvmap_fd, NVMAP_IOC_READ, &rwh)) == 0) {
+		fprintf(stderr, "handle %lx\n", handle);
+		do_hexdump(buf, offset, size);
+	} else {
+		fprintf(stderr, "FAILED TO NVMAP_IOC_READ = %d!\n", err);
+		exit(1);
+	}
+	free(buf);
+}
 
 static struct nvmap_map_caller mappings[100];
 static int num_mappings = 0;
@@ -103,12 +149,20 @@ static int nvmap_ioctl_pre(int fd, int request, ...)
 	case NVMAP_IOC_MMAP:
 		mc = ptr;
 		mappings[num_mappings++] = *mc;
-		wrap_log("MMap(0x%x, 0x%x, %d, 0x%x, %p)", mc->handle, mc->offset, mc->length, mc->flags, mc->addr);
+/*		wrap_log("MMap(0x%x, 0x%x, %d, 0x%x, %p)", mc->handle, mc->offset, mc->length, mc->flags, mc->addr); */
+		wrap_log("struct nvmap_map_caller mc = {\n"
+		    "\t.handle = 0x%x,\n"
+		    "\t.offset = 0x%x,\n"
+		    "\t.length = %d,\n"
+		    "\t.flags = 0x%x,\n"
+		    "\t.addr = %p\n"
+		    "};\n"
+		    "ioctl(%d, NVMAP_IOC_MMAP, &mc)", mc->handle, mc->offset, mc->length, mc->flags, mc->addr, fd);
 		break;
 
 	case NVMAP_IOC_WRITE:
 		rwh = ptr;
-		wrap_log("%p:\n", rwh->addr);
+		wrap_log("virtual address: %p:\n", rwh->addr);
 		hexdump((void *)rwh->addr, rwh->elem_size);
 		wrap_log("Write(%p, 0x%x, 0x%x, %d, %d, %d, %d)", rwh->addr,
 		    rwh->handle, rwh->offset, rwh->elem_size, rwh->hmem_stride,
@@ -179,6 +233,7 @@ static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
 
 	case NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD:
 		fdargs = ptr;
+		nvmap_fd = fdargs->fd;
 		wrap_log("ioctl(%d (/dev/nvhost-gr3d), NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD, %d)", fd, fdargs->fd);
 		break;
 
@@ -216,9 +271,10 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 
 	if (!orig_ioctl)
 		orig_ioctl = libc_dlsym("ioctl");
-
+#if 0
 	hexdump(ptr, count);
 	wrap_log("write(%d (/dev/nvhost-gr3d), %p, %d)\n", fd, ptr, count);
+#endif
 
 	while (1) {
 		if (!hdr.num_cmdbufs && !hdr.num_relocs) {
@@ -248,20 +304,25 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 
 			wrap_log("cmdbuf(%d left):\n", hdr.num_cmdbufs);
 			wrap_log("\tcmdbuf.mem = %p\n", cmdbuf.mem);
-			wrap_log("\tcmdbuf.offset = %d\n", cmdbuf.offset);
-			wrap_log("\tcmdbuf.words = %d\n", cmdbuf.words);
+			wrap_log("\tcmdbuf.offset = 0x%x\n", cmdbuf.offset);
+			wrap_log("\tcmdbuf.words = 0x%x\n", cmdbuf.words);
+#if 0
 			for (i = 0; i < num_mappings; ++i) {
 				unsigned char *ptr;
 				if (mappings[i].handle != cmdbuf.mem)
 					continue;
 			/*	if (mappings[i].offset > cmdbuf.offset)
 					continue; */
-				ptr = mappings[i].addr;
+				ptr = (unsigned char *)mappings[i].addr;
 				/* hexdump(ptr, mappings->length); */
 				ptr -= mappings[i].offset;
 				ptr += cmdbuf.offset;
 				hexdump(ptr, cmdbuf.words * 4);
+				break;
 			}
+			if (i == num_mappings)
+#endif
+			hexdump_handle(cmdbuf.mem, cmdbuf.offset, cmdbuf.words * 4);
 		} else if (hdr.num_relocs) {
 			struct nvhost_reloc reloc;
 
@@ -275,9 +336,9 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			
 			wrap_log("reloc:\n");
 			wrap_log("\tcmdbuf_mem = %p\n", reloc.cmdbuf_mem);
-			wrap_log("\tcmdbuf_offset = %d\n", reloc.cmdbuf_offset);
+			wrap_log("\tcmdbuf_offset = 0x%x\n", reloc.cmdbuf_offset);
 			wrap_log("\ttarget = %p\n", reloc.target);
-			wrap_log("\ttarget_offset = %d\n", reloc.target_offset);
+			wrap_log("\ttarget_offset = 0x%x\n", reloc.target_offset);
 		}
 	}
 }

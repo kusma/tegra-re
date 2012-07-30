@@ -13,4 +13,6 @@ struct open_hook {
 	struct funcs hooks;
 };
 
+static void *libc_dlsym(const char *name);
+
 #endif /* WRAP_H */

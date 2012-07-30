@@ -14,6 +14,7 @@
 
 extern const struct open_hook open_hooks[];
 extern const int num_open_hooks;
+extern int enable_logging;
 
 static struct funcs hooks[1024];
 
@@ -50,6 +51,8 @@ int open(const char* path, int flags, ...)
 		int i;
 
 		fd = orig_open(path, flags);
+		fprintf(stderr, "open(\"%s\", %d) = %d\n", path, flags, fd);
+
 		if (fd < 0 || fd >= 1024)
 			return fd;
 
@@ -57,6 +60,7 @@ int open(const char* path, int flags, ...)
 		for (i = 0; i < num_open_hooks; ++i)
 			if (!strcmp(path, open_hooks[i].path)) {
 				hooks[fd] = open_hooks[i].hooks;
+				enable_logging = 1;
 				break;
 			}
 	}
@@ -115,6 +119,21 @@ ssize_t write(int fd, const void *buf, size_t count)
 
 	if (fd >= 0 && fd < 1024 && hooks[fd].write_post_fn)
 		hooks[fd].write_post_fn(ret, fd, buf, count);
+
+	return ret;
+}
+
+void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
+{
+	void *ret;
+	static void *(*orig_mmap)(void *addr, size_t length, int prot, int flags, int fd, off_t offset) = NULL;
+
+	if (!orig_mmap)
+		orig_mmap = libc_dlsym("mmap");
+
+	ret = orig_mmap(addr, length, prot, flags, fd, offset);
+
+	fprintf(stderr, "mmap(%p, %d, 0x%x, 0x%x, %d, %d) = %p\n", addr, length, prot, flags, fd, (int)offset, ret);
 
 	return ret;
 }
