@@ -79,7 +79,8 @@ void *libc_dlsym(const char *name)
 
 void hexdump(const void *data, int size)
 {
-	do_hexdump(data, (long)data, size);
+	wrap_log("ptr %p\n", data);
+	do_hexdump(data, 0, size);
 }
 
 int nvmap_fd = -1;
@@ -107,7 +108,7 @@ void hexdump_handle(long handle, int offset, int size)
 	buf = malloc(size);
 	rwh.addr = (unsigned long)buf;
 	if ((err = ioctl(nvmap_fd, NVMAP_IOC_READ, &rwh)) == 0) {
-		fprintf(stderr, "handle %lx\n", handle);
+		wrap_log("handle %lx\n", handle);
 		do_hexdump(buf, offset, size);
 	} else {
 		fprintf(stderr, "FAILED TO NVMAP_IOC_READ = %d!\n", err);
