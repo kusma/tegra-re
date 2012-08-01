@@ -64,6 +64,39 @@ void do_hexdump(const void *data, int offset, int size)
 	}
 }
 
+void do_hexdump_words(const void *data, int offset, int size)
+{
+	const unsigned char *buf8 = data;
+	const unsigned int *buf32 = data;
+	char alpha[17];
+	int i;
+	for (i = 0; i < size; i++) {
+		if (!(i % 16))
+			wrap_log("\t\t%08X", (unsigned int) offset + i);
+		if (!(i % 4))
+			wrap_log(" %08X", buf32[i / 4]);
+		if (isprint(buf8[i]) && (buf8[i] < 0xA0))
+			alpha[i % 16] = buf8[i];
+		else
+			alpha[i % 16] = '.';
+		if ((i % 16) == 15) {
+			alpha[16] = 0;
+			wrap_log("\t|%s|\n", alpha);
+		}
+	}
+	if (i % 16) {
+		for (i %= 16; i < 16; i++) {
+			if (!(i % 4))
+				wrap_log("         ");
+			alpha[i] = '.';
+			if (i == 15) {
+				alpha[16] = 0;
+				wrap_log("\t|%s|\n", alpha);
+			}
+		}
+	}
+}
+
 /* extern void *__libc_dlopen(const char *, int); */
 extern void *__libc_dlsym(void *, const char *);
 
@@ -110,6 +143,38 @@ void hexdump_handle(long handle, int offset, int size)
 	if ((err = ioctl(nvmap_fd, NVMAP_IOC_READ, &rwh)) == 0) {
 		wrap_log("handle %lx\n", handle);
 		do_hexdump(buf, offset, size);
+	} else {
+		fprintf(stderr, "FAILED TO NVMAP_IOC_READ = %d!\n", err);
+		exit(1);
+	}
+	free(buf);
+}
+
+void hexdump_handle_words(long handle, int offset, int size)
+{
+	int err;
+	void *buf;
+	struct nvmap_rw_handle rwh = {
+		.handle = handle,
+		.offset = offset,
+		.elem_size = size,
+		.hmem_stride = size,
+		.user_stride = size,
+		.count = 1
+	};
+	static int (*ioctl)(int fd, int request, ...) = NULL;
+
+	if (nvmap_fd < 0)
+		return;
+
+	if (!ioctl)
+		ioctl = libc_dlsym("ioctl");
+
+	buf = malloc(size);
+	rwh.addr = (unsigned long)buf;
+	if ((err = ioctl(nvmap_fd, NVMAP_IOC_READ, &rwh)) == 0) {
+		wrap_log("handle %lx\n", handle);
+		do_hexdump_words(buf, offset, size);
 	} else {
 		fprintf(stderr, "FAILED TO NVMAP_IOC_READ = %d!\n", err);
 		exit(1);
@@ -323,7 +388,7 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			}
 			if (i == num_mappings)
 #endif
-			hexdump_handle(cmdbuf.mem, cmdbuf.offset, cmdbuf.words * 4);
+			hexdump_handle_words(cmdbuf.mem, cmdbuf.offset, cmdbuf.words * 4);
 		} else if (hdr.num_relocs) {
 			struct nvhost_reloc reloc;
 
