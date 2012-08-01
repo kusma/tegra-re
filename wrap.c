@@ -31,7 +31,7 @@ static int wrap_log(const char *format, ...)
 
 void do_hexdump(const void *data, int offset, int size)
 {
-	unsigned char *buf = (void *) data;
+	const unsigned char *buf = data;
 	char alpha[17];
 	int i;
 	for (i = 0; i < size; i++) {
