@@ -53,13 +53,11 @@ void die(const char *fmt, ...)
 
 void render(void)
 {
-	int x, y;
 	GLenum err;
 	GLint status, vbo, bin_len;
 	GLint vs = glCreateShader(GL_VERTEX_SHADER),
 	    fs = glCreateShader(GL_FRAGMENT_SHADER),
-	    p = glCreateProgram(),
-	    p2 = glCreateProgram();
+	    p = glCreateProgram();
 	const char *vs_str =
 /*	    "attribute vec3 pos;\n"
 	    "uniform mat4 mvp;\n" */
@@ -71,7 +69,7 @@ void render(void)
 	    "}\n";
 
 	static const char *fs_str =
-	    "precision mediump float;"
+	    "precision mediump float;\n"
 	    "void main()\n"
 	    "{\n"
 	    "\tgl_FragColor = vec4(1.0, 1.0, 1.0, 0.5);\n"
@@ -81,99 +79,42 @@ void render(void)
 
 	static const GLfloat verts[] = { 0.0, 0.0, 0.0 };
 
-	fprintf(stderr, "*** START COMPILING (%d %d)\n", strlen(vs_str), strlen(fs_str));
 	glShaderSource(vs, 1, &vs_str, NULL);
 	glShaderSource(fs, 1, &fs_str, NULL);
 	
-	fprintf(stderr, "*** START COMPILING 2\n");
 	glCompileShader(fs);
-	fprintf(stderr, "*** START COMPILING 3\n");
 	glCompileShader(vs);
-	fprintf(stderr, "*** STOP COMPILING\n");
 	glAttachShader(p, vs);
 	glAttachShader(p, fs);
-	fprintf(stderr, "*** START LINKING\n");
 	glLinkProgram(p);
-	fprintf(stderr, "*** STOP LINKING\n");
 
 	glGetProgramiv(p, GL_LINK_STATUS, &status);
 	if (!status)
 		die("failed to link");
 
-	glAttachShader(p2, vs);
-	glAttachShader(p2, fs);
-	fprintf(stderr, "*** START LINKING\n");
-	glLinkProgram(p2);
-	fprintf(stderr, "*** STOP LINKING\n");
-
-	glGetProgramiv(p2, GL_LINK_STATUS, &status);
-	if (!status)
-		die("failed to link");
-
-#if 0
-	bin_len = 0;	
-	glGetProgramiv(p, GL_PROGRAM_BINARY_LENGTH_OES, &bin_len);
-	printf("binary length: %d\n", bin_len);
-	{
-		char buf[10000];
-		GLenum format = 0;
-		int len = 0;
-		glGetProgramBinaryOES(p, sizeof(buf), &len, &format, buf);
-	}
-
-#endif
 /*	glGenBuffers(1, &vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW); */
+	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
+	glVertexAttribPointer(glGetAttribLocation(p, "pos"), 3, GL_FLOAT, GL_FALSE, 0, NULL);
+*/
+
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 
-/*	glViewport(8, 8, 16, 16); */
 	glUseProgram(p);
-/*	glVertexAttribPointer(glGetAttribLocation(p, "pos"), 3, GL_FLOAT, GL_FALSE, 0, NULL); */
-	fprintf(stderr, "*** DRAW 1 POINT\n");
 	glDrawArrays(GL_POINTS, 0, 1);
 	glFlush();
-	fprintf(stderr, "*** DRAW 1 POINT\n");
-	glDrawArrays(GL_POINTS, 0, 1);
-	glFlush();
-	glUseProgram(p2);
-	fprintf(stderr, "*** DRAW 2 POINTS\n");
-	glDrawArrays(GL_POINTS, 0, 2);
-	glFlush();
-/*
-	err = glGetError();
-	if (err)
-		die("GL error: 0x%x", err);
 
-	fprintf(stderr, "*** CLEAR 1 0 1\n");
-	fflush(stderr);
-	glClearColor(1.0, 0.0, 1.0, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glFlush();
-
-	fprintf(stderr, "*** CLEAR 0 1 1\n");
-	fflush(stderr);
-	glClearColor(1.0, 0.0, 1.0, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glDrawArrays(GL_POINTS, 0, 1);
-	glFlush();
-*/
-/*
-	fprintf(stderr, "FLUSH\n");
-	fflush(stderr); */
-
-/*	glFinish(); */
-	fprintf(stderr, "*** READPIXELS\n");
-	fflush(stderr);
-	GLubyte data[32 * 32 * 4];
-	glReadPixels(0, 0, 32, 32, GL_RGBA, GL_UNSIGNED_BYTE, data);
-	fprintf(stderr, "*** STOP READPIXELS\n");
-	fflush(stderr);
-	for (y = 0; y < HEIGHT; ++y, putchar('\n'))
-		for (x = 0; x < WIDTH; ++x)
-			putchar(data[(y * WIDTH + x) * 4] ? '*' : '.');
-	printf("%d %d %d %d\n", data[0], data[1], data[2], data[3]);
+	{
+		int x, y;
+		GLubyte data[WIDTH * HEIGHT * 4];
+		printf("# readpixels\n");
+		glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		printf("# end of readpixels\n");
+		for (y = 0; y < HEIGHT; ++y, putchar('\n'))
+			for (x = 0; x < WIDTH; ++x)
+				putchar(data[(y * WIDTH + x) * 4] ? '*' : '.');
+	}
 }
 
 int main(int argc, char *argv[])

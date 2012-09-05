@@ -51,7 +51,7 @@ int open(const char* path, int flags, ...)
 		int i;
 
 		fd = orig_open(path, flags);
-		fprintf(stderr, "open(\"%s\", %d) = %d\n", path, flags, fd);
+		printf("# open(\"%s\", %d) = %d\n", path, flags, fd);
 
 		if (fd < 0 || fd >= 1024)
 			return fd;
@@ -133,7 +133,7 @@ void *mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 
 	ret = orig_mmap(addr, length, prot, flags, fd, offset);
 
-	fprintf(stderr, "mmap(%p, %d, 0x%x, 0x%x, %d, %d) = %p\n", addr, length, prot, flags, fd, (int)offset, ret);
+/*	fprintf(stderr, "# mmap(%p, %d, 0x%x, 0x%x, %d, %d) = %p\n", addr, length, prot, flags, fd, (int)offset, ret); */
 
 	return ret;
 }

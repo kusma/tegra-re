@@ -109,7 +109,7 @@ static int (*CgDrv_Compile_orig)(struct CgCtx *ctx, int b, enum shader_type type
 int CgDrv_Compile(struct CgCtx *ctx, int b, enum shader_type type, const char *str, size_t len, int d)
 {
 	int ret;
-	fprintf(stderr, "shader:\n---8<---\n%s---8<---\n", str);
+	fprintf(stderr, "shader:\n---8<---\n%*s---8<---\n", len, str);
 	dump_ctx(ctx);
 	fprintf(stderr, "CgDrv_Compile(%p, %d, %d, %s, %d, %d)", ctx, b, type, "<str>", len, d);
 	if (CgDrv_Compile_orig)
