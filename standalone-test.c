@@ -120,6 +120,7 @@ int main(void)
 		exit(1);
 	}
 
+	submit_cmd.hdr.syncpt_id = 22;
 	submit_cmd.hdr.syncpt_incrs = 0;
 	submit_cmd.hdr.num_cmdbufs = 1;
 	submit_cmd.hdr.num_relocs = 0;
