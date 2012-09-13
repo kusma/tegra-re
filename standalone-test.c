@@ -6,7 +6,7 @@
 #include <nvmap_ioctl.h>
 #include <nvhost_ioctl.h>
 
-static int nvmap_fd, gr3d_fd;
+static int nvmap_fd, gr3d_fd, ctrl_fd;
 
 unsigned long nvmap_create(unsigned int size)
 {
@@ -60,12 +60,70 @@ int nvmap_read(void *dst, long handle, int offset, int size)
 	return ioctl(nvmap_fd, NVMAP_IOC_READ, &rwh);
 }
 
+/* class ids */
+enum {
+    NV_HOST1X_CLASS_ID = 0x1,
+    NV_VIDEO_ENCODE_MPEG_CLASS_ID = 0x20,
+    NV_GRAPHICS_3D_CLASS_ID = 0x60
+};
+
+#include <stdint.h>
+typedef uint32_t u32;
+
+/* cdma opcodes */
+static inline u32 nvhost_opcode_setclass(
+    unsigned class_id, unsigned offset, unsigned mask)
+{
+	return (0 << 28) | (offset << 16) | (class_id << 6) | mask;
+}
+
+static inline u32 nvhost_opcode_incr(unsigned offset, unsigned count)
+{
+	return (1 << 28) | (offset << 16) | count;
+}
+
+static inline u32 nvhost_opcode_nonincr(unsigned offset, unsigned count)
+{
+	return (2 << 28) | (offset << 16) | count;
+}
+
+static inline u32 nvhost_opcode_mask(unsigned offset, unsigned mask)
+{
+	return (3 << 28) | (offset << 16) | mask;
+}
+
+static inline u32 nvhost_opcode_imm(unsigned offset, unsigned value)
+{
+	return (4 << 28) | (offset << 16) | value;
+}
+
+static inline u32 nvhost_opcode_restart(unsigned address)
+{
+	return (5 << 28) | (address >> 4);
+}
+
+static inline u32 nvhost_opcode_gather(unsigned offset, unsigned count)
+{
+	return (6 << 28) | (offset << 16) | count;
+}
+
+static inline u32 nvhost_opcode_gather_nonincr(unsigned offset, unsigned count)
+{
+	return (6 << 28) | (offset << 16) | BIT(15) | count;
+}
+
+static inline u32 nvhost_opcode_gather_incr(unsigned offset, unsigned count)
+{
+	return (6 << 28) | (offset << 16) | BIT(15) | BIT(14) | count;
+}
 
 int main(void)
 {
 	unsigned long handle;
 	struct nvhost_set_nvmap_fd_args fda;
 	struct nvhost_get_param_args pa;
+	struct nvhost_ctrl_syncpt_read_args ra;
+	struct nvhost_ctrl_syncpt_wait_args wa;
 
 	struct {
 		struct nvhost_submit_hdr hdr;
@@ -80,7 +138,13 @@ int main(void)
 
 	gr3d_fd = open("/dev/nvhost-gr3d", O_RDWR);
 	if (gr3d_fd < 0) {
-		perror("/dev/gr3d");
+		perror("/dev/nvhost-gr3d");
+		exit(1);
+	}
+
+	ctrl_fd = open("/dev/nvhost-ctrl", O_RDWR);
+	if (ctrl_fd < 0) {
+		perror("/dev/nvhost-ctrl");
 		exit(1);
 	}
 
@@ -112,7 +176,9 @@ int main(void)
 	printf("handle: 0x%lx\n", handle);
 
 	unsigned int cmds[] = {
-		0x0
+		nvhost_opcode_setclass(NV_GRAPHICS_3D_CLASS_ID, 0, 0),
+		nvhost_opcode_incr(0x0, 1),
+		0x1 << 8 | 0x16
 	};
 
 	if (nvmap_write(handle, 0, cmds, sizeof(cmds)) < 0) {
@@ -120,8 +186,16 @@ int main(void)
 		exit(1);
 	}
 
+	/* get syncpt threshold */
+	ra.id = 22;
+	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_READ, &ra) < 0) {
+		perror("NVHOST_IOCTL_CTRL_SYNCPT_READ");
+		exit(1);
+	}
+	printf("0x%x\n", ra.value);
+
 	submit_cmd.hdr.syncpt_id = 22;
-	submit_cmd.hdr.syncpt_incrs = 0;
+	submit_cmd.hdr.syncpt_incrs = 1;
 	submit_cmd.hdr.num_cmdbufs = 1;
 	submit_cmd.hdr.num_relocs = 0;
 
@@ -135,7 +209,15 @@ int main(void)
 	}
 
 	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_FLUSH) < 0) {
-		perror("flush");
+		perror("NVHOST_IOCTL_CHANNEL_FLUSH");
+		exit(1);
+	}
+
+	wa.id = 0x16;
+	wa.thresh = ra.value + submit_cmd.hdr.syncpt_incrs;
+	wa.timeout = 0xffffffff;
+	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_WAIT, &wa) < 0) {
+		perror("NVHOST_IOCTL_CTRL_SYNCPT_WAIT");
 		exit(1);
 	}
 
