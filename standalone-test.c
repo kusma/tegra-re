@@ -67,6 +67,22 @@ enum {
     NV_GRAPHICS_3D_CLASS_ID = 0x60
 };
 
+enum {
+    NV_HOST_MODULE_HOST1X = 0,
+    NV_HOST_MODULE_MPE = 1,
+    NV_HOST_MODULE_GR3D = 6
+};
+
+/* host class */
+enum {
+    NV_CLASS_HOST_INCR_SYNCPT = 0x0,
+    NV_CLASS_HOST_WAIT_SYNCPT = 0x8,
+    NV_CLASS_HOST_WAIT_SYNCPT_BASE = 0x9,
+    NV_CLASS_HOST_INCR_SYNCPT_BASE = 0xc,
+    NV_CLASS_HOST_INDOFF = 0x2d,
+    NV_CLASS_HOST_INDDATA = 0x2e
+};
+
 #include <stdint.h>
 typedef uint32_t u32;
 
@@ -115,6 +131,12 @@ static inline u32 nvhost_opcode_gather_nonincr(unsigned offset, unsigned count)
 static inline u32 nvhost_opcode_gather_incr(unsigned offset, unsigned count)
 {
 	return (6 << 28) | (offset << 16) | BIT(15) | BIT(14) | count;
+}
+
+static inline u32 nvhost_class_host_incr_syncpt_base(
+    unsigned base_indx, unsigned offset)
+{
+	return (base_indx << 24) | offset;
 }
 
 int main(void)
@@ -176,9 +198,17 @@ int main(void)
 	printf("handle: 0x%lx\n", handle);
 
 	unsigned int cmds[] = {
+		nvhost_opcode_setclass(NV_HOST1X_CLASS_ID, NV_CLASS_HOST_INCR_SYNCPT_BASE, 1),
+		nvhost_class_host_incr_syncpt_base(3, 1),
 		nvhost_opcode_setclass(NV_GRAPHICS_3D_CLASS_ID, 0, 0),
-		nvhost_opcode_incr(0x0, 1),
-		0x1 << 8 | 0x16
+#if 0
+		nvhost_opcode_incr(0x820, 4),
+		0xF0F0F0F0,
+		0xFF00FF00,
+		0xFFFF0000,
+		0x0000FFFF,
+#endif
+		nvhost_opcode_imm(0x0, (0x1 << 8) | 0x16)
 	};
 
 	if (nvmap_write(handle, 0, cmds, sizeof(cmds)) < 0) {
