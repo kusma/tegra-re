@@ -95,7 +95,7 @@ const char *decode_operand(uint64_t bits)
 			    decode_fp20(embedded_consts >> offset));
 			embedded_consts_used = 1;
 		} else
-			dst += sprintf(dst, "#%d.0", (bits >> 5) & 1);
+			dst += sprintf(dst, "#%d", (bits >> 5) & 1);
 	} else {
 		/* normal registers */
 		dst += sprintf(dst, "%c%c%d",
@@ -105,7 +105,7 @@ const char *decode_operand(uint64_t bits)
 	}
 
 	if ((bits >> 0) & 1)
-		dst += sprintf(dst, " * #2.0");
+		dst += sprintf(dst, " * #2");
 
 	if ((bits >> 2) & 1) {
 		*dst = ')';
