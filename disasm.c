@@ -72,16 +72,19 @@ const char *decode_operand(uint64_t bits)
 {
 	static char buf[32];
 	char *dst = buf;
-	int uniform = (bits >> 11) & 1;
-	int reg = (bits >> 6) & 31;
+	int s2x = (bits >> 0) & 1;
+	int neg = (bits >> 1) & 1;
+	int abs = (bits >> 2) & 1;
 	int x10 = (bits >> 3) & 1;
+	int reg = (bits >> 6) & 31; /* bit 6..10 */
+	int uni = (bits >> 11) & 1;
 
-	if ((bits >> 1) & 1) {
+	if (neg) {
 		*dst = '-';
 		++dst;
 	}
 
-	if ((bits >> 2) & 1) {
+	if (abs) {
 		strcpy(dst, "abs(");
 		dst += 4;
 	}
@@ -99,15 +102,15 @@ const char *decode_operand(uint64_t bits)
 	} else {
 		/* normal registers */
 		dst += sprintf(dst, "%c%c%d",
-		    uniform ? 'u' : 'v',
+		    uni ? 'u' : 'v',
 		    x10 ? 'x' : 'r',
 		    reg);
 	}
 
-	if ((bits >> 0) & 1)
+	if (s2x)
 		dst += sprintf(dst, " * #2");
 
-	if ((bits >> 2) & 1) {
+	if (abs) {
 		*dst = ')';
 		++dst;
 	}
