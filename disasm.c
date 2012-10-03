@@ -119,13 +119,13 @@ const char *decode_operand(uint64_t bits)
 const char *decode_rd(uint64_t instr)
 {
 	static char buf[32];
-	int reg = (instr >> 15) & 31;
+	int offs = (instr >> 14) & 63; /* 14..19 */
 	int x10 = ((instr >> 14) & 1) != ((instr >> 13) & 1);
 
 	if (x10)
-		sprintf(buf, "x%d", reg);
+		sprintf(buf, "x%d", offs);
 	else
-		sprintf(buf, "r%d", reg);
+		sprintf(buf, "r%d", offs >> 1);
 	return buf;
 }
 
