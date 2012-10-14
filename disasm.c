@@ -224,17 +224,32 @@ void disasm_fp(FILE *fp)
 	fseek(fp, offset + 16, SEEK_SET);
 	for (i = 16; i < len; i += 4) {
 		uint32_t cmd = read32(fp);
-		/* printf("cmd: %x\n", cmd); */
-		if ((cmd & 0xffff0000) == 0x28040000) {
-			int count = cmd & 0xffff;
-			if (count % 8 != 0) {
-				fprintf(stderr, "count %d not dividable by 8\n", count);
-				exit(1);
+		/* printf("cmd: %08x\n", cmd); */
+		if ((cmd & 0xf0000000) == 0x20000000 ||
+		    (cmd & 0xf0000000) == 0x10000000) {
+			int j, count = cmd & 0xffff;
+			if ((cmd & 0x0fff0000) == 0x08040000) {
+				if (count % 8 != 0) {
+					fprintf(stderr,
+					    "count %d not dividable by 8\n",
+					    count);
+					exit(1);
+				}
+				printf("found ALU code at %x,"
+				    " %d instruction words\n",
+				    offset + i + 4, count / 8);
+				disasm_frag_alu(fp, count / 8);
+			} else {
+				printf("unknown upload of %d words to %x\n",
+				    count, (cmd >> 16) & 0xfff);
+				for (j = 0; j < count; ++j) {
+					uint32_t word = read32(fp);
+					printf("%08"PRIx32"\n", word);
+				}
 			}
-			printf("found ALU code at %x, %d instruction words\n", offset + i + 4, count / 8);
-			disasm_frag_alu(fp, count / 8);
 			i += 4 * count;
-		}
+		} else
+			printf("unknown cmd %08x\n", cmd);
 	}
 }
 
