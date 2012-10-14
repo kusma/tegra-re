@@ -157,7 +157,7 @@ void disasm_frag_alu_instr(uint64_t instr)
 
 	printf("%s, ", decode_rd(instr));
 	printf("%s, ", decode_operand(instr >> 0));
-	printf("%s, ", decode_operand((instr >> 51) & ~1));
+	printf("%s, ", decode_operand(instr >> 51));
 	printf("%s\n", decode_operand(instr >> 38));
 }
 
