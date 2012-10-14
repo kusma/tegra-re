@@ -189,6 +189,26 @@ void disasm_frag_alu(FILE *fp, int count)
 	}
 }
 
+void disasm_frag_lut(FILE *fp, int count)
+{
+	int i;
+	for (i = 0; i < count; ++i) {
+		uint64_t word = read64(fp);
+		const char *opcodes[] = {
+			"??0",  /* 0 */
+			"RCP",  /* 1 */
+			"RSQ",  /* 2 */
+			"??3",  /* 3 */
+			"??4",  /* 4 */
+			"SQRT", /* 5 */
+			"SIN",  /* 6 */
+			"COS"   /* 7 */
+		};
+		int opcode = (word >> 22) & 0x7;
+		printf("%016"PRIx64" %s\n", word, opcodes[opcode]);
+	}
+}
+
 void disasm_fp(FILE *fp)
 {
 	int i;
@@ -239,6 +259,17 @@ void disasm_fp(FILE *fp)
 				    " %d instruction words\n",
 				    offset + i + 4, count / 8);
 				disasm_frag_alu(fp, count / 8);
+			} else if ((cmd & 0x0fff0000) == 0x06040000) {
+				if (count % 2) {
+					fprintf(stderr,
+					    "count %d not dividable by 2\n",
+					    count);
+					exit(1);
+				}
+				printf("found LUT code at %x,"
+				    " %d instruction words\n",
+				    offset + i + 4, count / 2);
+				disasm_frag_lut(fp, count / 2);
 			} else {
 				printf("unknown upload of %d words to %x\n",
 				    count, (cmd >> 16) & 0xfff);
