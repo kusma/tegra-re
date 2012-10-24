@@ -71,6 +71,8 @@ void *libc_dlsym(const char *name)
 {
 	void *ret, *libc = dlopen("libc.so", RTLD_LAZY);
 	if (!libc)
+		libc = dlopen("/lib/arm-linux-gnueabihf/libc.so.6", RTLD_LAZY);
+	if (!libc)
 		libc = dlopen("/lib/arm-linux-gnueabi/libc.so.6", RTLD_LAZY);
 	ret = __libc_dlsym(libc, name);
 	dlclose(libc);
