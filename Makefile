@@ -13,7 +13,7 @@ stanadlone-test: standalone-test.c
 	gcc $(CPPFLAGS) $(CFLAGS) $^ -o pbuffer-test $(LDFLAGS)
 
 clean:
-	rm pbuffer-test pbuffer-teste-gles1 standalone-test wrap.o compiler-wrap.o hook.o
+	rm -f pbuffer-test pbuffer-teste-gles1 standalone-test wrap.o compiler-wrap.o hook.o
 
 %.frag.cgbin:%.frag.glsl
 	"$(CGC)" -profile ar20fp -ogles -o "$@" "$<"
