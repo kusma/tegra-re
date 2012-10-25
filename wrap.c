@@ -313,6 +313,9 @@ static int nvmap_ioctl_post(int ret, int fd, int request, ...)
 #endif
 }
 
+static struct nvhost_submit_hdr_ext hdr;
+static int num_relocshifts;
+
 static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
 {
 	struct nvhost_set_nvmap_fd_args *fdargs;
@@ -347,6 +350,28 @@ static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
 		fdargs = ptr;
 		nvmap_fd = fdargs->fd;
 		wrap_log("# ioctl(%d (/dev/nvhost-gr3d), NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD, %d)", fd, fdargs->fd);
+		break;
+
+	case NVHOST_IOCTL_CHANNEL_SUBMIT_EXT:
+		memcpy(&hdr, ptr, sizeof(hdr));
+		wrap_log("# hdr:\n");
+		wrap_log("# \thdr.syncpt_id = %d\n", hdr.syncpt_id);
+		wrap_log("# \thdr.syncpt_incrs = %d\n", hdr.syncpt_incrs);
+		wrap_log("# \thdr.num_cmdbufs = %d\n", hdr.num_cmdbufs);
+		wrap_log("# \thdr.num_relocs = %d\n", hdr.num_relocs);
+		if (hdr.submit_version >= NVHOST_SUBMIT_VERSION_V2)
+			num_relocshifts = hdr.num_relocs;
+
+		wrap_log("# ioctl(%d (/dev/nvhost-gr3d), NVHOST_IOCTL_CHANNEL_SUBMIT_EXT, ...)", fd);
+
+		if (!hdr.num_cmdbufs) {
+			wrap_log("# submit should have at least one cmdbuf!\n");
+			exit(1);
+		}
+
+
+		break;
+
 		break;
 
 	default:
@@ -388,7 +413,6 @@ static int nvhost_gr3d_ioctl_post(int ret, int fd, int request, ...)
 
 ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 {
-	static struct nvhost_submit_hdr hdr;
 	const unsigned char *curr = ptr;
 	size_t remaining = count;
 	int i;
@@ -403,21 +427,29 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 #endif
 
 	while (1) {
-		if (!hdr.num_cmdbufs && !hdr.num_relocs) {
+		if (!hdr.num_cmdbufs && !hdr.num_relocs && !num_relocshifts && !hdr.num_waitchks) {
 
-			if (remaining < sizeof(hdr))
+			if (remaining < sizeof(struct nvhost_submit_hdr))
 				break;
 
-			memcpy(&hdr, curr, sizeof(hdr));
-			curr += sizeof(hdr);
-			remaining -= sizeof(hdr);
+			memcpy(&hdr, curr, sizeof(struct nvhost_submit_hdr));
+			hdr.submit_version = NVHOST_SUBMIT_VERSION_V0;
+			curr += sizeof(struct nvhost_submit_hdr);
+			remaining -= sizeof(struct nvhost_submit_hdr);
+
+			if (!hdr.num_cmdbufs) {
+				wrap_log("# submit should have at least one cmdbuf!\n");
+				exit(1);
+			}
 
 			wrap_log("# hdr:\n");
 			wrap_log("# \thdr.syncpt_id = %d\n", hdr.syncpt_id);
 			wrap_log("# \thdr.syncpt_incrs = %d\n", hdr.syncpt_incrs);
 			wrap_log("# \thdr.num_cmdbufs = %d\n", hdr.num_cmdbufs);
 			wrap_log("# \thdr.num_relocs = %d\n", hdr.num_relocs);
-		} else if (hdr.num_cmdbufs) {
+		}
+
+		if (hdr.num_cmdbufs) {
 			struct nvhost_cmdbuf cmdbuf;
 
 			if (remaining < sizeof(cmdbuf))
@@ -466,6 +498,27 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			wrap_log("# \tcmdbuf_offset = 0x%x\n", reloc.cmdbuf_offset);
 			wrap_log("# \ttarget = %p\n", reloc.target);
 			wrap_log("# \ttarget_offset = 0x%x\n", reloc.target_offset);
+		} else if (hdr.num_waitchks) {
+
+			if (remaining < sizeof(struct nvhost_waitchk))
+				break;
+
+			wrap_log("# waitchks (%d) not supported!\n", hdr.num_waitchks);
+			curr += sizeof(struct nvhost_waitchk) * hdr.num_waitchks;
+			remaining -= sizeof(struct nvhost_waitchk) * hdr.num_waitchks;
+			hdr.num_waitchks = 0;
+		} else if (num_relocshifts) {
+
+			if (remaining < sizeof(struct nvhost_reloc_shift))
+				break;
+
+			wrap_log("# reloc_shifts (%d) not supported!\n", num_relocshifts);
+			curr += sizeof(struct nvhost_reloc_shift) * num_relocshifts;
+			remaining -= sizeof(struct nvhost_reloc_shift) * num_relocshifts;
+			num_relocshifts = 0;
+		} else {
+			wrap_log("# inconsistent state\n");
+			exit(1);
 		}
 	}
 }
