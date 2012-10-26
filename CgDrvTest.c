@@ -128,6 +128,7 @@ int main(int argc, char *argv[])
 				exit(1);
 			}
 		}
+		fclose(fp);
 
 		src = realloc(src, src_len + 1);
 		if (!src) {
@@ -156,10 +157,15 @@ int main(int argc, char *argv[])
 		}
 
 		dump_ctx(ctx);
+		fp = fopen("out.nvfb", "wb");
+		if (fp) {
+			fwrite(ctx->unknown16, 1, ctx->unknown12, fp);
+			fclose(fp);
+		}
 	}
 }
 
-#if 1
+#if 0
 extern void *__libc_malloc(size_t size);
 void *malloc(size_t size)
 {
