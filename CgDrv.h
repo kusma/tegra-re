@@ -11,14 +11,14 @@ struct CgCtx {
 	const char *log;         /* compile log */
 
 	/* size and binary? */
-	size_t        unknown12; /* size of... something! The driver mallocs a buffer of this size right on return. */
-	void         *unknown16; /* pointer (0x248 bytes) */
+	size_t        binary_size;
+	void         *binary;
 
 	unsigned int  unknown20; /* small int (1) */
 
 	/* size and binary? huh, is this duplicate data? */
-	void         *binary;
-	size_t        binary_size;
+	void         *unknown24;
+	size_t        unknown28;
 
 	void         *unknown32; /* pointer */
 	unsigned int  unknown36; /* NULL / 0x0*/

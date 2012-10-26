@@ -56,14 +56,13 @@ static void dump_ctx(struct CgCtx *ctx)
 	wrap_log("error: %s\n", ctx->error ? ctx->error : "<no error>");
 	wrap_log("log: %s\n", ctx->log ? ctx->log : "<no log>");
 
-	wrap_log("unknown12 = %zu\n", ctx->unknown12);
-	wrap_log("unknown16 = %p\n", ctx->unknown16);
-	hexdump(ctx->unknown16, ctx->unknown12);
-	
-
-	wrap_log("unknown20 = %08x\n", ctx->unknown20);
 	wrap_log("binary (%d bytes) =\n", ctx->binary_size);
 	hexdump(ctx->binary, ctx->binary_size);
+
+	wrap_log("unknown20 = %08x\n", ctx->unknown20);
+	wrap_log("unknown24 = %p\n", ctx->unknown24);
+	wrap_log("unknown28 = %zu\n", ctx->unknown28);
+	hexdump(ctx->unknown24, ctx->unknown28);
 	wrap_log("unknown32 = %p\n", ctx->unknown32);
 	wrap_log("unknown36 = %08x\n", ctx->unknown36);
 	wrap_log("unknown40 = %08x\n", ctx->unknown40);
@@ -73,7 +72,7 @@ static void dump_ctx(struct CgCtx *ctx)
 	wrap_log("unknown48 = %08x\n", ctx->unknown48);
 	wrap_log("unknown52 = %08x\n", ctx->unknown52);
 //	wrap_log("unknown56 = %p\n", ctx->unknown56);
-	hexdump(ctx->unknown56, 0x100);
+//	hexdump(ctx->unknown56, 0x100);
 	wrap_log("unknown60 = %08x\n", ctx->unknown60);
 	wrap_log("unknown64 = %08x\n", ctx->unknown64);
 	wrap_log("unknown68 = %08x\n", ctx->unknown68);
@@ -141,7 +140,6 @@ int main(int argc, char *argv[])
 		src[src_len] = '\0';
 
 		ctx = CgDrv_Create();
-
 		if (!ctx) {
 			fprintf(stderr, "CgDrv_Create failed!\n");
 			return -1;
@@ -159,7 +157,7 @@ int main(int argc, char *argv[])
 		dump_ctx(ctx);
 		fp = fopen("out.nvfb", "wb");
 		if (fp) {
-			fwrite(ctx->unknown16, 1, ctx->unknown12, fp);
+			fwrite(ctx->binary, 1, ctx->binary_size, fp);
 			fclose(fp);
 		}
 	}
