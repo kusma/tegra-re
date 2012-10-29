@@ -229,8 +229,9 @@ int main(void)
 	hdr.num_waitchks = 0;
 	hdr.waitchk_mask = 0;
 
-	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_SUBMIT_EXT, &hdr) < 0) {
-		perror("NVHOST_IOCTL_CHANNEL_SUBMIT_EXT");
+	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_SUBMIT_EXT, &hdr) < 0 &&
+	    write(gr3d_fd, &hdr, sizeof(struct nvhost_submit_hdr)) < 0) {
+		perror("write");
 		exit(1);
 	}
 
