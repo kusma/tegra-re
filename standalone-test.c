@@ -146,11 +146,8 @@ int main(void)
 	struct nvhost_get_param_args pa;
 	struct nvhost_ctrl_syncpt_read_args ra;
 	struct nvhost_ctrl_syncpt_wait_args wa;
-
-	struct {
-		struct nvhost_submit_hdr hdr;
-		struct nvhost_cmdbuf cmdbuf;
-	} __attribute__ ((packed)) submit_cmd;
+	struct nvhost_submit_hdr_ext hdr;
+	struct nvhost_cmdbuf cmdbuf;
 
 	nvmap_fd = open("/dev/nvmap", O_DSYNC | O_RDWR);
 	if (nvmap_fd < 0) {
@@ -224,16 +221,24 @@ int main(void)
 	}
 	printf("0x%x\n", ra.value);
 
-	submit_cmd.hdr.syncpt_id = 22;
-	submit_cmd.hdr.syncpt_incrs = 1;
-	submit_cmd.hdr.num_cmdbufs = 1;
-	submit_cmd.hdr.num_relocs = 0;
+	hdr.syncpt_id = 22;
+	hdr.syncpt_incrs = 1;
+	hdr.num_cmdbufs = 1;
+	hdr.num_relocs = 0;
+	hdr.submit_version = NVHOST_SUBMIT_VERSION_V1;
+	hdr.num_waitchks = 0;
+	hdr.waitchk_mask = 0;
 
-	submit_cmd.cmdbuf.mem = handle;
-	submit_cmd.cmdbuf.offset = 0;
-	submit_cmd.cmdbuf.words = sizeof(cmds) / sizeof(cmds[0]);
+	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_SUBMIT_EXT, &hdr) < 0) {
+		perror("NVHOST_IOCTL_CHANNEL_SUBMIT_EXT");
+		exit(1);
+	}
 
-	if (write(gr3d_fd, &submit_cmd, sizeof(submit_cmd)) < 0) {
+	cmdbuf.mem = handle;
+	cmdbuf.offset = 0;
+	cmdbuf.words = sizeof(cmds) / sizeof(cmds[0]);
+
+	if (write(gr3d_fd, &cmdbuf, sizeof(cmdbuf)) < 0) {
 		perror("write");
 		exit(1);
 	}
@@ -244,7 +249,7 @@ int main(void)
 	}
 
 	wa.id = 0x16;
-	wa.thresh = ra.value + submit_cmd.hdr.syncpt_incrs;
+	wa.thresh = ra.value + hdr.syncpt_incrs;
 	wa.timeout = 0xffffffff;
 	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_WAIT, &wa) < 0) {
 		perror("NVHOST_IOCTL_CTRL_SYNCPT_WAIT");
