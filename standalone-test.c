@@ -69,16 +69,12 @@ void *nvmap_mmap(long handle, int offset, int length, int flags)
 	mc.flags = flags;
 
 	ptr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, nvmap_fd, 0);
-	if (ptr == MAP_FAILED) {
-		perror("mmap");
-		exit(1);
-	}
+	if (ptr == MAP_FAILED)
+		return NULL;
 
 	mc.addr = (long)ptr;
-	if (ioctl(nvmap_fd, NVMAP_IOC_MMAP, &mc)) {
-		perror("ioctl");
-		exit(1);
-	}
+	if (ioctl(nvmap_fd, NVMAP_IOC_MMAP, &mc))
+		return NULL;
 
 	return ptr;
 }
@@ -260,6 +256,11 @@ int main(void)
 
 #if 1
 	u32 *ptr = nvmap_mmap(handle, 0, 0x8000, 0);
+	if (!ptr) {
+		perror("nvmap_mmap");
+		exit(1);
+	}
+
 	/* invalidate cache */
 	if (nvmap_cache(ptr, handle, 0x8000, NVMAP_CACHE_OP_INV) < 0) {
 		perror("nvmap_cache");
