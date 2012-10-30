@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <sys/mman.h>
 
 #include <asm/types.h>
 #include <nvmap_ioctl.h>
@@ -60,6 +61,39 @@ int nvmap_read(void *dst, long handle, int offset, int size)
 	return ioctl(nvmap_fd, NVMAP_IOC_READ, &rwh);
 }
 
+void *nvmap_mmap(long handle, int offset, int length, int flags)
+{
+	void *ptr;
+	struct nvmap_map_caller mc;
+	mc.handle = handle;
+	mc.offset = offset;
+	mc.length = length;
+	mc.flags = flags;
+
+	ptr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, nvmap_fd, 0);
+	if (ptr == MAP_FAILED) {
+		perror("mmap");
+		exit(1);
+	}
+
+	mc.addr = (long)ptr;
+	if (ioctl(nvmap_fd, NVMAP_IOC_MMAP, &mc)) {
+		perror("ioctl");
+		exit(1);
+	}
+
+	return ptr;
+}
+
+int nvmap_cache(void *ptr, long handle, int len, int op)
+{
+	struct nvmap_cache_op co;
+	co.addr = (long)ptr;
+	co.handle = handle;
+	co.len = len;
+	co.op = op;
+	return ioctl(nvmap_fd, NVMAP_IOC_CACHE, &co);
+}
 /* class ids */
 enum {
     NV_HOST1X_CLASS_ID = 0x1,
@@ -194,6 +228,27 @@ int main(void)
 	}
 	printf("handle: 0x%lx\n", handle);
 
+
+#if 1
+	u32 *ptr = nvmap_mmap(handle, 0, 0x8000, 0);
+	/* invalidate cache */
+	if (nvmap_cache(ptr, handle, 0x8000, NVMAP_CACHE_OP_INV) < 0) {
+		perror("nvmap_cache");
+		exit(1);
+	}
+	u32 *curr = ptr;
+	*curr++ = nvhost_opcode_setclass(NV_HOST1X_CLASS_ID, NV_CLASS_HOST_INCR_SYNCPT_BASE, 1);
+	*curr++ = nvhost_class_host_incr_syncpt_base(3, 1);
+	*curr++ = nvhost_opcode_setclass(NV_GRAPHICS_3D_CLASS_ID, 0, 0);
+	*curr++ = nvhost_opcode_imm(0x0, (0x1 << 8) | 0x16);
+
+	/* flush and invalidate cache */
+	if (nvmap_cache(ptr, handle, 0x8000, NVMAP_CACHE_OP_WB_INV) < 0) {
+		perror("nvmap_cache");
+		exit(1);
+	}
+
+#else
 	unsigned int cmds[] = {
 		nvhost_opcode_setclass(NV_HOST1X_CLASS_ID, NV_CLASS_HOST_INCR_SYNCPT_BASE, 1),
 		nvhost_class_host_incr_syncpt_base(3, 1),
@@ -212,6 +267,7 @@ int main(void)
 		perror("nvmap_write");
 		exit(1);
 	}
+#endif
 
 	/* get syncpt threshold */
 	ra.id = 22;
@@ -237,7 +293,11 @@ int main(void)
 
 	cmdbuf.mem = handle;
 	cmdbuf.offset = 0;
+#if 0
 	cmdbuf.words = sizeof(cmds) / sizeof(cmds[0]);
+#else
+	cmdbuf.words = curr - ptr;
+#endif
 
 	if (write(gr3d_fd, &cmdbuf, sizeof(cmdbuf)) < 0) {
 		perror("write");
