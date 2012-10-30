@@ -184,6 +184,11 @@ static u32 nvhost_read_3d_reg(int offset)
 	return ra.value;
 }
 
+static int nvhost_flush(void)
+{
+	return ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_FLUSH);
+}
+
 static int nvhost_syncpt_wait(int id, int thresh, unsigned int timeout)
 {
 	struct nvhost_ctrl_syncpt_wait_args wa;
@@ -331,8 +336,8 @@ int main(void)
 		exit(1);
 	}
 
-	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_FLUSH) < 0) {
-		perror("NVHOST_IOCTL_CHANNEL_FLUSH");
+	if (nvhost_flush() < 0) {
+		perror("nvhost_flush");
 		exit(1);
 	}
 
