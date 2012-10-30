@@ -15,10 +15,8 @@ unsigned long nvmap_create(unsigned int size)
 	struct nvmap_alloc_handle ah;
 
 	ch.size = size;
-	if (ioctl(nvmap_fd, NVMAP_IOC_CREATE, &ch) < 0) {
-		perror("ioctl");
-		exit(1);
-	}
+	if (ioctl(nvmap_fd, NVMAP_IOC_CREATE, &ch) < 0)
+		return 0;
 
 	return ch.handle;
 }
@@ -249,6 +247,10 @@ int main(void)
 #endif
 
 	handle = nvmap_create(0x8000);
+	if (!handle) {
+		perror("nvmap_create");
+		exit(1);
+	}
 	if (nvmap_alloc(handle) < 0) {
 		perror("nvmap_alloc");
 		exit(1);
