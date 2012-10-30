@@ -173,8 +173,20 @@ static inline u32 nvhost_class_host_incr_syncpt_base(
 	return (base_indx << 24) | offset;
 }
 
+static u32 nvhost_read_3d_reg(int offset)
+{
+	struct nvhost_read_3d_reg_args ra;
+	ra.offset = offset;
+	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_READ_3D_REG, &ra)) {
+		perror("ioctl");
+		exit(1);
+	}
+	return ra.value;
+}
+
 int main(void)
 {
+	int reg;
 	unsigned long handle;
 	struct nvhost_set_nvmap_fd_args fda;
 	struct nvhost_get_param_args pa;
@@ -240,6 +252,11 @@ int main(void)
 	*curr++ = nvhost_opcode_setclass(NV_HOST1X_CLASS_ID, NV_CLASS_HOST_INCR_SYNCPT_BASE, 1);
 	*curr++ = nvhost_class_host_incr_syncpt_base(3, 1);
 	*curr++ = nvhost_opcode_setclass(NV_GRAPHICS_3D_CLASS_ID, 0, 0);
+	*curr++ = nvhost_opcode_incr(0x820, 4);
+	*curr++ = 0xF0F0F0F0;
+	*curr++ = 0xFF00FF00;
+	*curr++ = 0xFFFF0000;
+	*curr++ = 0x0000FFFF;
 	*curr++ = nvhost_opcode_imm(0x0, (0x1 << 8) | 0x16);
 
 	/* flush and invalidate cache */
@@ -317,6 +334,8 @@ int main(void)
 		exit(1);
 	}
 
+	for (reg = 0x820; reg < 0x824; ++reg)
+		printf("reg%03X = 0x%08X\n", reg, nvhost_read_3d_reg(reg));
 	return 0;
 }
 
