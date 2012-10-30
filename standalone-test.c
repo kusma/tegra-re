@@ -182,6 +182,14 @@ static int nvhost_flush(void)
 	return ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_FLUSH);
 }
 
+static int nvhost_get_version(void)
+{
+	struct nvhost_get_param_args gpa;
+	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_GET_VERSION, &gpa) < 0)
+		return NVHOST_SUBMIT_VERSION_V0;
+	return gpa.value;
+}
+
 static int nvhost_syncpt_wait(int id, int thresh, unsigned int timeout)
 {
 	struct nvhost_ctrl_syncpt_wait_args wa;
