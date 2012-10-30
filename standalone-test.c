@@ -184,6 +184,15 @@ static u32 nvhost_read_3d_reg(int offset)
 	return ra.value;
 }
 
+static int nvhost_syncpt_wait(int id, int thresh, unsigned int timeout)
+{
+	struct nvhost_ctrl_syncpt_wait_args wa;
+	wa.id = id;
+	wa.thresh = thresh;
+	wa.timeout = timeout;
+	return ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_WAIT, &wa);
+}
+
 #define NVSYNCPT_3D                          (22)
 
 int main(void)
@@ -193,7 +202,6 @@ int main(void)
 	struct nvhost_set_nvmap_fd_args fda;
 	struct nvhost_get_param_args pa;
 	struct nvhost_ctrl_syncpt_read_args ra;
-	struct nvhost_ctrl_syncpt_wait_args wa;
 	struct nvhost_submit_hdr_ext hdr;
 	struct nvhost_cmdbuf cmdbuf;
 
@@ -328,11 +336,8 @@ int main(void)
 		exit(1);
 	}
 
-	wa.id = NVSYNCPT_3D;
-	wa.thresh = ra.value + hdr.syncpt_incrs;
-	wa.timeout = 0xffffffff;
-	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_WAIT, &wa) < 0) {
-		perror("NVHOST_IOCTL_CTRL_SYNCPT_WAIT");
+	if (nvhost_syncpt_wait(NVSYNCPT_3D, ra.value + hdr.syncpt_incrs, NVHOST_NO_TIMEOUT) < 0) {
+		perror("nvhost_syncpt_wait");
 		exit(1);
 	}
 
