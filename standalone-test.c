@@ -184,6 +184,8 @@ static u32 nvhost_read_3d_reg(int offset)
 	return ra.value;
 }
 
+#define NVSYNCPT_3D                          (22)
+
 int main(void)
 {
 	int reg;
@@ -287,14 +289,14 @@ int main(void)
 #endif
 
 	/* get syncpt threshold */
-	ra.id = 22;
+	ra.id = NVSYNCPT_3D;
 	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_READ, &ra) < 0) {
 		perror("NVHOST_IOCTL_CTRL_SYNCPT_READ");
 		exit(1);
 	}
 	printf("0x%x\n", ra.value);
 
-	hdr.syncpt_id = 22;
+	hdr.syncpt_id = NVSYNCPT_3D;
 	hdr.syncpt_incrs = 1;
 	hdr.num_cmdbufs = 1;
 	hdr.num_relocs = 0;
@@ -326,7 +328,7 @@ int main(void)
 		exit(1);
 	}
 
-	wa.id = 0x16;
+	wa.id = NVSYNCPT_3D;
 	wa.thresh = ra.value + hdr.syncpt_incrs;
 	wa.timeout = 0xffffffff;
 	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_WAIT, &wa) < 0) {
