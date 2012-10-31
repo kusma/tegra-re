@@ -198,14 +198,23 @@ void disasm_frag_lut(FILE *fp, int count)
 			"??0",  /* 0 */
 			"RCP",  /* 1 */
 			"RSQ",  /* 2 */
-			"??3",  /* 3 */
-			"??4",  /* 4 */
+			"LOG",  /* 3 */
+			"EXP",  /* 4 */
 			"SQRT", /* 5 */
 			"SIN",  /* 6 */
-			"COS"   /* 7 */
+			"COS",  /* 7 */
+			"FRC",  /* 8 */
+			"PREEXP", /* 9 */
+			"PRESIN", /* 10 */
+			"PRECOS", /* 11 */
+			"?12",  /* 12 */
+			"?13",  /* 13 */
+			"?14",  /* 14 */
+			"?15",  /* 15 */
 		};
-		int opcode = (word >> 22) & 0x7;
-		printf("%016"PRIx64" %s\n", word, opcodes[opcode]);
+		int opcode = (word >> 22) & 15;
+		int reg = (word >> 26) & 0x1f;
+		printf("%016"PRIx64" %s r%d\n", word, opcodes[opcode], reg);
 	}
 }
 
