@@ -162,9 +162,9 @@ int main(int argc, char *argv[])
 			dump_ctx(ctx);
 
 		if (type == FRAGMENT)
-			fp = fopen("out.nvfb", "wb");
+			fp = fopen("out.nvbf", "wb");
 		else
-			fp = fopen("out.nvvb", "wb");
+			fp = fopen("out.nvbv", "wb");
 		if (fp) {
 			fwrite(ctx->binary, 1, ctx->binary_size, fp);
 			fclose(fp);
