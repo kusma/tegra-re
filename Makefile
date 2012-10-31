@@ -2,9 +2,8 @@ CGC=$(NV_WINCE_T2_PLAT)/host_bin/cgc
 SHADERFIX=$(NV_WINCE_T2_PLAT)/host_bin/shaderfix
 
 CFLAGS += -g
-LDFLAGS += -ldl
 pbuffer-test: pbuffer-test.c wrap.o hook.o # compiler-wrap.o
-	gcc $(CPPFLAGS) $(CFLAGS) $^ -o pbuffer-test $(LDFLAGS) -lEGL -lGLESv2
+	gcc $(CPPFLAGS) $(CFLAGS) $^ -o pbuffer-test $(LDFLAGS) -lEGL -lGLESv2 -ldl
 
 pbuffer-test-gles1: pbuffer-test-gles1.c wrap.o hook.o # compiler-wrap.o
 	gcc $(CPPFLAGS) $(CFLAGS) $^ -o pbuffer-test-gles1 $(LDFLAGS) -lEGL -lGLESv1_CM
