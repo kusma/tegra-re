@@ -22,3 +22,9 @@ clean:
 
 %.nvbf:%.frag.cgbin
 	"$(SHADERFIX)" -o "$@" "$<"
+
+%.vert.cgbin:%.vert.glsl
+	"$(CGC)" -profile ar20vp -ogles -o "$@" "$<"
+
+%.nvbv:%.vert.cgbin
+	"$(SHADERFIX)" -o "$@" "$<"
