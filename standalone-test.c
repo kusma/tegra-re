@@ -7,87 +7,10 @@
 #include <nvmap_ioctl.h>
 #include <nvhost_ioctl.h>
 
-static int nvmap_fd, gr3d_fd, ctrl_fd;
+#include "nvmap.h"
 
-unsigned long nvmap_create(unsigned int size)
-{
-	struct nvmap_create_handle ch;
-	struct nvmap_alloc_handle ah;
+static int gr3d_fd, ctrl_fd;
 
-	ch.size = size;
-	if (ioctl(nvmap_fd, NVMAP_IOC_CREATE, &ch) < 0)
-		return 0;
-
-	return ch.handle;
-}
-
-int nvmap_alloc(unsigned long handle)
-{
-	struct nvmap_alloc_handle ah;
-
-	ah.handle = handle;
-	ah.heap_mask = 0x1;
-	ah.flags = 0x1; /* NVMAP_HANDLE_WRITE_COMBINE */
-	ah.align = 0x20;
-
-	return ioctl(nvmap_fd, NVMAP_IOC_ALLOC, &ah);
-}
-
-int nvmap_write(long handle, int offset, const void *src, int size)
-{
-	struct nvmap_rw_handle rwh;
-
-	rwh.handle = handle;
-	rwh.offset = offset;
-	rwh.addr = (unsigned long)src;
-	rwh.elem_size = rwh.hmem_stride = rwh.user_stride  = size;
-	rwh.count = 1;
-
-	return ioctl(nvmap_fd, NVMAP_IOC_WRITE, &rwh);
-}
-
-int nvmap_read(void *dst, long handle, int offset, int size)
-{
-	struct nvmap_rw_handle rwh;
-
-	rwh.handle = handle;
-	rwh.offset = offset;
-	rwh.addr = (unsigned long)dst;
-	rwh.elem_size = rwh.hmem_stride = rwh.user_stride  = size;
-	rwh.count = 1;
-
-	return ioctl(nvmap_fd, NVMAP_IOC_READ, &rwh);
-}
-
-void *nvmap_mmap(long handle, int offset, int length, int flags)
-{
-	void *ptr;
-	struct nvmap_map_caller mc;
-	mc.handle = handle;
-	mc.offset = offset;
-	mc.length = length;
-	mc.flags = flags;
-
-	ptr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, nvmap_fd, 0);
-	if (ptr == MAP_FAILED)
-		return NULL;
-
-	mc.addr = (long)ptr;
-	if (ioctl(nvmap_fd, NVMAP_IOC_MMAP, &mc))
-		return NULL;
-
-	return ptr;
-}
-
-int nvmap_cache(void *ptr, long handle, int len, int op)
-{
-	struct nvmap_cache_op co;
-	co.addr = (long)ptr;
-	co.handle = handle;
-	co.len = len;
-	co.op = op;
-	return ioctl(nvmap_fd, NVMAP_IOC_CACHE, &co);
-}
 /* class ids */
 enum {
     NV_HOST1X_CLASS_ID = 0x1,
@@ -211,9 +134,8 @@ int main(void)
 	struct nvhost_submit_hdr_ext hdr;
 	struct nvhost_cmdbuf cmdbuf;
 
-	nvmap_fd = open("/dev/nvmap", O_DSYNC | O_RDWR);
-	if (nvmap_fd < 0) {
-		perror("/dev/nvmap");
+	if (nvmap_open()) {
+		perror("nvmap_open");
 		exit(1);
 	}
 
@@ -229,7 +151,7 @@ int main(void)
 		exit(1);
 	}
 
-	fda.fd = nvmap_fd;
+	fda.fd = nvmap_get_fd();
 	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD, &fda) < 0) {
 		perror("ioctl");
 		exit(1);
@@ -258,8 +180,6 @@ int main(void)
 		perror("nvmap_alloc");
 		exit(1);
 	}
-	printf("handle: 0x%lx\n", handle);
-
 
 #if 1
 	u32 *ptr = nvmap_mmap(handle, 0, 0x8000, 0);
