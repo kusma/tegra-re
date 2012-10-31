@@ -9,7 +9,7 @@ pbuffer-test: pbuffer-test.c wrap.o hook.o # compiler-wrap.o
 pbuffer-test-gles1: pbuffer-test-gles1.c wrap.o hook.o # compiler-wrap.o
 	gcc $(CPPFLAGS) $(CFLAGS) $^ -o pbuffer-test-gles1 $(LDFLAGS) -lEGL -lGLESv1_CM
 
-standalone-test: standalone-test.c nvmap.o
+standalone-test: standalone-test.c nvmap.o nvhost.o
 	gcc $(CPPFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 clean:

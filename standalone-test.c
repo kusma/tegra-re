@@ -8,8 +8,7 @@
 #include <nvhost_ioctl.h>
 
 #include "nvmap.h"
-
-static int gr3d_fd, ctrl_fd;
+#include "nvhost.h"
 
 /* class ids */
 enum {
@@ -90,47 +89,13 @@ static inline u32 nvhost_class_host_incr_syncpt_base(
 	return (base_indx << 24) | offset;
 }
 
-static int nvhost_read_3d_reg(int offset, u32 *val)
-{
-	int ret;
-	struct nvhost_read_3d_reg_args ra;
-	ra.offset = offset;
-	ret = ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_READ_3D_REG, &ra);
-	*val = ra.value;
-	return ret;
-}
-
-static int nvhost_flush(void)
-{
-	return ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_FLUSH);
-}
-
-static int nvhost_get_version(void)
-{
-	struct nvhost_get_param_args gpa;
-	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_GET_VERSION, &gpa) < 0)
-		return NVHOST_SUBMIT_VERSION_V0;
-	return gpa.value;
-}
-
-static int nvhost_syncpt_wait(int id, int thresh, unsigned int timeout)
-{
-	struct nvhost_ctrl_syncpt_wait_args wa;
-	wa.id = id;
-	wa.thresh = thresh;
-	wa.timeout = timeout;
-	return ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_WAIT, &wa);
-}
-
 #define NVSYNCPT_3D                          (22)
 
 int main(void)
 {
+	unsigned int syncpt;
 	int reg;
-	unsigned long handle;
-	struct nvhost_set_nvmap_fd_args fda;
-	struct nvhost_get_param_args pa;
-	struct nvhost_ctrl_syncpt_read_args ra;
+	nvmap_handle_t handle;
 	struct nvhost_submit_hdr_ext hdr;
 	struct nvhost_cmdbuf cmdbuf;
 
@@ -139,21 +104,13 @@ int main(void)
 		exit(1);
 	}
 
-	gr3d_fd = open("/dev/nvhost-gr3d", O_RDWR);
-	if (gr3d_fd < 0) {
-		perror("/dev/nvhost-gr3d");
+	if (nvhost_open(nvmap_get_fd())) {
+		perror("nvhost_open");
 		exit(1);
 	}
 
-	ctrl_fd = open("/dev/nvhost-ctrl", O_RDWR);
-	if (ctrl_fd < 0) {
-		perror("/dev/nvhost-ctrl");
-		exit(1);
-	}
-
-	fda.fd = nvmap_get_fd();
-	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_SET_NVMAP_FD, &fda) < 0) {
-		perror("ioctl");
+	if (nvhost_syncpt_read(NVSYNCPT_3D, &syncpt)) {
+		perror("nvhost_syncpt_read");
 		exit(1);
 	}
 
@@ -232,13 +189,6 @@ int main(void)
 #endif
 
 	/* get syncpt threshold */
-	ra.id = NVSYNCPT_3D;
-	if (ioctl(ctrl_fd, NVHOST_IOCTL_CTRL_SYNCPT_READ, &ra) < 0) {
-		perror("NVHOST_IOCTL_CTRL_SYNCPT_READ");
-		exit(1);
-	}
-	printf("0x%x\n", ra.value);
-
 	hdr.syncpt_id = NVSYNCPT_3D;
 	hdr.syncpt_incrs = 1;
 	hdr.num_cmdbufs = 1;
@@ -247,8 +197,8 @@ int main(void)
 	hdr.num_waitchks = 0;
 	hdr.waitchk_mask = 0;
 
-	if (ioctl(gr3d_fd, NVHOST_IOCTL_CHANNEL_SUBMIT_EXT, &hdr) < 0 &&
-	    write(gr3d_fd, &hdr, sizeof(struct nvhost_submit_hdr)) < 0) {
+	if (ioctl(nvhost_get_gr3d_fd(), NVHOST_IOCTL_CHANNEL_SUBMIT_EXT, &hdr) < 0 &&
+	    write(nvhost_get_gr3d_fd(), &hdr, sizeof(struct nvhost_submit_hdr)) < 0) {
 		perror("write");
 		exit(1);
 	}
@@ -261,7 +211,7 @@ int main(void)
 	cmdbuf.words = curr - ptr;
 #endif
 
-	if (write(gr3d_fd, &cmdbuf, sizeof(cmdbuf)) < 0) {
+	if (write(nvhost_get_gr3d_fd(), &cmdbuf, sizeof(cmdbuf)) < 0) {
 		perror("write");
 		exit(1);
 	}
@@ -271,7 +221,7 @@ int main(void)
 		exit(1);
 	}
 
-	if (nvhost_syncpt_wait(NVSYNCPT_3D, ra.value + hdr.syncpt_incrs, NVHOST_NO_TIMEOUT) < 0) {
+	if (nvhost_syncpt_wait(NVSYNCPT_3D, syncpt + hdr.syncpt_incrs, NVHOST_NO_TIMEOUT) < 0) {
 		perror("nvhost_syncpt_wait");
 		exit(1);
 	}
