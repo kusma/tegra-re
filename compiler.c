@@ -82,7 +82,7 @@ static void dump_ctx(struct CgCtx *ctx)
 
 int main(int argc, char *argv[])
 {
-	int i, ret;
+	int i, ret, dump = 0;
 	enum shader_type type = FRAGMENT;
 	for (i = 1; i < argc; ++i) {
 		struct CgCtx *ctx;
@@ -103,6 +103,10 @@ int main(int argc, char *argv[])
 		}
 		if (!strcmp(arg, "--vert")) {
 			type = VERTEX;
+			continue;
+		}
+		if (!strcmp(arg, "--dump")) {
+			dump = 1;
 			continue;
 		}
 
@@ -154,8 +158,13 @@ int main(int argc, char *argv[])
 			return -1;
 		}
 
-		dump_ctx(ctx);
-		fp = fopen("out.nvfb", "wb");
+		if (dump)
+			dump_ctx(ctx);
+
+		if (type == FRAGMENT)
+			fp = fopen("out.nvfb", "wb");
+		else
+			fp = fopen("out.nvvb", "wb");
 		if (fp) {
 			fwrite(ctx->binary, 1, ctx->binary_size, fp);
 			fclose(fp);
