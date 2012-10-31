@@ -13,7 +13,7 @@ standalone-test: standalone-test.c nvmap.o nvhost.o
 	gcc $(CPPFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 clean:
-	rm -f pbuffer-test pbuffer-teste-gles1 standalone-test wrap.o compiler-wrap.o hook.o
+	rm -f pbuffer-test pbuffer-teste-gles1 standalone-test wrap.o compiler-wrap.o hook.o nvmap.o nvhost.o
 
 %.frag.cgbin:%.frag.glsl
 	"$(CGC)" -profile ar20fp -ogles -o "$@" "$<"
