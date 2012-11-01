@@ -51,70 +51,16 @@ void die(const char *fmt, ...)
 #define WIDTH 32
 #define HEIGHT 32
 
-void render(void)
+void run_tests(void);
+
+void present(void)
 {
-	GLenum err;
-	GLint status, vbo, bin_len;
-	GLint vs = glCreateShader(GL_VERTEX_SHADER),
-	    fs = glCreateShader(GL_FRAGMENT_SHADER),
-	    p = glCreateProgram();
-	const char *vs_str =
-/*	    "attribute vec3 pos;\n"
-	    "uniform mat4 mvp;\n" */
-	    "void main()\n"
-	    "{\n"
-/*	    "\tgl_Position = mvp * vec4(pos, 1.0);\n" */
-	    "\tgl_PointSize = 1.5;\n"
-	    "\tgl_Position = vec4(0.0, 0.0, 0.0, 1.0);\n"
-	    "}\n";
-
-	static const char *fs_str =
-	    "precision mediump float;\n"
-	    "void main()\n"
-	    "{\n"
-	    "\tgl_FragColor = vec4(1.0, 1.0, 1.0, 0.5);\n"
-/*	    "\tgl_FragColor = vec4(gl_FragCoord.xy + gl_FragCoord.xy, gl_FragCoord.xy * gl_FragCoord.xy);\n" */
-/*	    "\tgl_FragColor = vec4(gl_FragCoord.xyxy + gl_FragCoord.xyxy);\n" */
-	    "}\n";
-
-	static const GLfloat verts[] = { 0.0, 0.0, 0.0 };
-
-	glShaderSource(vs, 1, &vs_str, NULL);
-	glShaderSource(fs, 1, &fs_str, NULL);
-	
-	glCompileShader(fs);
-	glCompileShader(vs);
-	glAttachShader(p, vs);
-	glAttachShader(p, fs);
-	glLinkProgram(p);
-
-	glGetProgramiv(p, GL_LINK_STATUS, &status);
-	if (!status)
-		die("failed to link");
-
-/*	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
-	glVertexAttribPointer(glGetAttribLocation(p, "pos"), 3, GL_FLOAT, GL_FALSE, 0, NULL);
-*/
-
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	glUseProgram(p);
-	glDrawArrays(GL_POINTS, 0, 1);
-	glFlush();
-
-	{
-		int x, y;
-		GLubyte data[WIDTH * HEIGHT * 4];
-		printf("# readpixels\n");
-		glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		printf("# end of readpixels\n");
-		for (y = 0; y < HEIGHT; ++y, putchar('\n'))
-			for (x = 0; x < WIDTH; ++x)
-				putchar(data[(y * WIDTH + x) * 4] ? '*' : '.');
-	}
+	int x, y;
+	GLubyte data[WIDTH * HEIGHT * 4];
+	glReadPixels(0, 0, WIDTH, HEIGHT, GL_RGBA, GL_UNSIGNED_BYTE, data);
+	for (y = 0; y < HEIGHT; ++y, putchar('\n'))
+		for (x = 0; x < WIDTH; ++x)
+			putchar(data[(y * WIDTH + x) * 4] ? '*' : '.');
 }
 
 int main(int argc, char *argv[])
@@ -171,7 +117,7 @@ int main(int argc, char *argv[])
 
 	printf("%s\n", glGetString(GL_EXTENSIONS));
 
-	render();
+	run_tests();
 
 	eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 	eglDestroyContext(dpy, ctx);
