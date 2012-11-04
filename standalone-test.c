@@ -109,6 +109,7 @@ int main(void)
 		exit(1);
 	}
 
+	/* get syncpt threshold */
 	if (nvhost_syncpt_read(NVSYNCPT_3D, &syncpt)) {
 		perror("nvhost_syncpt_read");
 		exit(1);
@@ -188,7 +189,6 @@ int main(void)
 	}
 #endif
 
-	/* get syncpt threshold */
 	hdr.syncpt_id = NVSYNCPT_3D;
 	hdr.syncpt_incrs = 1;
 	hdr.num_cmdbufs = 1;
