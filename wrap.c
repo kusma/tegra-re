@@ -13,7 +13,7 @@
 
 #include "hook.h"
 
-int enable_logging = 0;
+static int enable_logging = 1;
 
 static int wrap_log(const char *format, ...)
 {

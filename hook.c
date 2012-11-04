@@ -14,7 +14,6 @@
 
 extern const struct open_hook open_hooks[];
 extern const int num_open_hooks;
-extern int enable_logging;
 
 static struct funcs hooks[1024];
 
@@ -62,7 +61,6 @@ int open(const char* path, int flags, ...)
 		for (i = 0; i < num_open_hooks; ++i)
 			if (!strcmp(path, open_hooks[i].path)) {
 				hooks[fd] = open_hooks[i].hooks;
-				enable_logging = 1;
 				break;
 			}
 	}
