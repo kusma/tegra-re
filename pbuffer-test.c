@@ -89,6 +89,11 @@ int main(int argc, char *argv[])
 		EGL_NONE
 	};
 
+	if (dpy == EGL_NO_DISPLAY) {
+		fprintf(stderr, "failed to get display\n");
+		exit(1);
+	}
+
 	if (!eglInitialize(dpy, &major, &minor)) {
 		fprintf(stderr, "failed to init egl\n");
 		exit(1);
