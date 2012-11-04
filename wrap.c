@@ -121,7 +121,7 @@ void hexdump_handle(long handle, int offset, int size)
 
 #include <nvhost_ioctl.h>
 #include <stdint.h>
-void dump_cmdbuf(struct nvhost_cmdbuf *cmdbuf)
+void dump_cmdbuf(struct nvhost_cmdbuf *cmdbuf, struct nvhost_reloc *relocs, int num_relocs)
 {
 	int err;
 	uint32_t *buf;
@@ -158,9 +158,22 @@ void dump_cmdbuf(struct nvhost_cmdbuf *cmdbuf)
 	if ((err = ioctl(nvmap_fd, NVMAP_IOC_READ, &rwh)) == 0) {
 		int i;
 /*		wrap_log("# Handle %lx, offset %lx\n", cmdbuf->mem, cmdbuf->offset); */
-		for (i = 0; i < cmdbuf->words; ++i)
-			wrap_log("%08X\n", buf[i]);
-/*			fprintf(stdout, "%08X\n", buf[i]); */
+		for (i = 0; i < cmdbuf->words; ++i) {
+			int j;
+
+			/* find reloc */
+			for (j = 0; j < num_relocs; ++j)
+				if ((relocs[j].cmdbuf_mem == cmdbuf->mem) &&
+				    (relocs[j].cmdbuf_offset == cmdbuf->offset + i * 4))
+					break;
+
+			if (j < num_relocs)
+				wrap_log("%08X\n# reloc %x@%x\n", buf[i], relocs[j].target, relocs[j].target_offset);
+			else if (buf[i] == 0xdeadbeef)
+				wrap_log("%08X\n# reloc missing!\n", buf[i]);
+			else
+				wrap_log("%08X\n", buf[i]);
+		}
 	} else {
 		fprintf(stderr, "FAILED TO NVMAP_IOC_READ = %d!\n", err);
 		exit(1);
@@ -315,6 +328,29 @@ static int nvmap_ioctl_post(int ret, int fd, int request, ...)
 
 static struct nvhost_submit_hdr_ext hdr;
 static int num_relocshifts;
+static struct nvhost_cmdbuf *cmdbufs;
+static int num_cmdbufs;
+static struct nvhost_reloc *relocs;
+static int num_relocs;
+
+static void set_submit(struct nvhost_submit_hdr_ext *hdr)
+{
+	if (!hdr->num_cmdbufs) {
+		wrap_log("# submit should have at least one cmdbuf!\n");
+		exit(1);
+	}
+
+	wrap_log("# hdr:\n");
+	wrap_log("# \thdr.syncpt_id = %d\n", hdr->syncpt_id);
+	wrap_log("# \thdr.syncpt_incrs = %d\n", hdr->syncpt_incrs);
+	wrap_log("# \thdr.num_cmdbufs = %d\n", hdr->num_cmdbufs);
+	wrap_log("# \thdr.num_relocs = %d\n", hdr->num_relocs);
+
+	cmdbufs = realloc(cmdbufs, sizeof(*cmdbufs) * hdr->num_cmdbufs);
+	num_cmdbufs = 0;
+	relocs = realloc(relocs, sizeof(*relocs) * hdr->num_cmdbufs);
+	num_relocs = 0;
+}
 
 static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
 {
@@ -364,13 +400,7 @@ static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
 
 		wrap_log("# ioctl(%d (/dev/nvhost-gr3d), NVHOST_IOCTL_CHANNEL_SUBMIT_EXT, ...)", fd);
 
-		if (!hdr.num_cmdbufs) {
-			wrap_log("# submit should have at least one cmdbuf!\n");
-			exit(1);
-		}
-
-
-		break;
+		set_submit(&hdr);
 
 		break;
 
@@ -411,6 +441,17 @@ static int nvhost_gr3d_ioctl_post(int ret, int fd, int request, ...)
 	}
 }
 
+static void inspect_cmdbufs(void)
+{
+	int i;
+	if (!num_cmdbufs)
+		return;
+
+	for (i = 0; i < num_cmdbufs; ++i)
+		dump_cmdbuf(&cmdbufs[i], relocs, num_relocs);
+	num_cmdbufs = 0;
+	num_relocs = 0;
+}
 ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 {
 	const unsigned char *curr = ptr;
@@ -429,6 +470,8 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 	while (1) {
 		if (!hdr.num_cmdbufs && !hdr.num_relocs && !num_relocshifts && !hdr.num_waitchks) {
 
+			inspect_cmdbufs();
+
 			if (remaining < sizeof(struct nvhost_submit_hdr))
 				break;
 
@@ -437,16 +480,8 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			curr += sizeof(struct nvhost_submit_hdr);
 			remaining -= sizeof(struct nvhost_submit_hdr);
 
-			if (!hdr.num_cmdbufs) {
-				wrap_log("# submit should have at least one cmdbuf!\n");
-				exit(1);
-			}
+			set_submit(&hdr);
 
-			wrap_log("# hdr:\n");
-			wrap_log("# \thdr.syncpt_id = %d\n", hdr.syncpt_id);
-			wrap_log("# \thdr.syncpt_incrs = %d\n", hdr.syncpt_incrs);
-			wrap_log("# \thdr.num_cmdbufs = %d\n", hdr.num_cmdbufs);
-			wrap_log("# \thdr.num_relocs = %d\n", hdr.num_relocs);
 		}
 
 		if (hdr.num_cmdbufs) {
@@ -459,6 +494,8 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			curr += sizeof(cmdbuf);
 			remaining -= sizeof(cmdbuf);
 			--hdr.num_cmdbufs;
+
+			cmdbufs[num_cmdbufs++] = cmdbuf;
 
 			wrap_log("# cmdbuf(%d left):\n", hdr.num_cmdbufs);
 			wrap_log("# \tcmdbuf.mem = %p\n", cmdbuf.mem);
@@ -480,7 +517,7 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			}
 			if (i == num_mappings)
 #endif
-			dump_cmdbuf(&cmdbuf);
+
 /*			hexdump_handle_words(cmdbuf.mem, cmdbuf.offset, cmdbuf.words * 4); */
 		} else if (hdr.num_relocs) {
 			struct nvhost_reloc reloc;
@@ -492,6 +529,8 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			curr += sizeof(reloc);
 			remaining -= sizeof(reloc);
 			--hdr.num_relocs;
+
+			relocs[num_relocs++] = reloc;
 
 			wrap_log("# reloc:\n");
 			wrap_log("# \tcmdbuf_mem = %p\n", reloc.cmdbuf_mem);
@@ -521,6 +560,9 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			exit(1);
 		}
 	}
+
+	if (!hdr.num_cmdbufs && !hdr.num_relocs && !num_relocshifts && !hdr.num_waitchks)
+		inspect_cmdbufs();
 }
 
 ssize_t nvhost_gr3d_write_post(int ret, int fd, const void *ptr, size_t count)
