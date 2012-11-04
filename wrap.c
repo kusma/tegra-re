@@ -390,11 +390,6 @@ static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
 
 	case NVHOST_IOCTL_CHANNEL_SUBMIT_EXT:
 		memcpy(&hdr, ptr, sizeof(hdr));
-		wrap_log("# hdr:\n");
-		wrap_log("# \thdr.syncpt_id = %d\n", hdr.syncpt_id);
-		wrap_log("# \thdr.syncpt_incrs = %d\n", hdr.syncpt_incrs);
-		wrap_log("# \thdr.num_cmdbufs = %d\n", hdr.num_cmdbufs);
-		wrap_log("# \thdr.num_relocs = %d\n", hdr.num_relocs);
 		if (hdr.submit_version >= NVHOST_SUBMIT_VERSION_V2)
 			num_relocshifts = hdr.num_relocs;
 
