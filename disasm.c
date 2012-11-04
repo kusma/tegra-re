@@ -244,13 +244,15 @@ void disasm_fp(FILE *fp)
 	printf("code at %x..%x\n", offset, offset + len);
 
 	fseek(fp, offset, SEEK_SET);
-	fread(buf, 1, 8, fp);
-	if (strncmp(buf, "AR20-BIN", 8)) {
-		fprintf(stderr, "wrong header: '%s'\n", buf);
-		exit(1);
+	if (magic == 0x26836d2f) {
+		fread(buf, 1, 8, fp);
+		if (strncmp(buf, "AR20-BIN", 8)) {
+			fprintf(stderr, "wrong header: '%s'\n", buf);
+			exit(1);
+		}
+		fseek(fp, offset + 16, SEEK_SET);
 	}
 
-	fseek(fp, offset + 16, SEEK_SET);
 	for (i = 16; i < len; i += 4) {
 		uint32_t cmd = read32(fp);
 		/* printf("cmd: %08x\n", cmd); */
@@ -288,7 +290,10 @@ void disasm_fp(FILE *fp)
 				}
 			}
 			i += 4 * count;
-		} else
+		} else if ((cmd & 0xf0000000) == 0x40000000)
+			printf("setting register %x to %x\n",
+			    (cmd >> 16) & 0xfff, cmd & 0xffff);
+		else
 			printf("unknown cmd %08x\n", cmd);
 	}
 }
