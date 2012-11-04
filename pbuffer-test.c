@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
 	EGLint num_cfg;
 	static const EGLint cfg_attrs[] = {
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+		EGL_SURFACE_TYPE, EGL_PBUFFER_BIT,
 		EGL_NONE
 	};
 
