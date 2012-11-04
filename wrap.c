@@ -207,15 +207,25 @@ static int nvmap_ioctl_pre(int fd, int request, ...)
 	switch (request) {
 	case NVMAP_IOC_CREATE:
 		ch = ptr;
+#ifdef LOG_NVMAP_IOCTL
 		wrap_log("# struct nvmap_create_handle ch = {\n"
 		    "# \t.handle = 0x%x,\n"
 		    "# \t.size = 0x%x,\n"
                     "# };\n"
                     "# ioctl(%d, NVMAP_IOC_CREATE, &ch)", ch->handle, ch->size, fd);
+#endif
 		break;
 
 	case NVMAP_IOC_FREE:
+#ifdef LOG_NVMAP_IOCTL
+		wrap_log("# ioctl(%d (/dev/nvmap), NVMAP_IOC_FREE, ...)", fd);
+#endif
+		break;
+
 	case NVMAP_IOC_PIN_MULT:
+#ifdef LOG_NVMAP_IOCTL
+		wrap_log("# ioctl(%d (/dev/nvmap), NVMAP_IOC_PIN_MULT, ...)", fd);
+#endif
 		break;
 
 	case NVMAP_IOC_ALLOC:
@@ -295,35 +305,33 @@ static int nvmap_ioctl_post(int ret, int fd, int request, ...)
 		va_end(va);
 	}
 
-	switch (request) {
-	case NVMAP_IOC_CREATE:
-		ch = ptr;
-/*		wrap_log("# 0x%x = CreateHandle(%d) = %d\n", ch->handle, ch->size, ret); */
-		wrap_log(" = %d\n", ret);
-		wrap_log("# ch.handle = 0x%x\n", ch->handle);
-		break;
-
-	case NVMAP_IOC_FREE:
-/*		wrap_log("# FreeHandle(0x%x) = %d\n", (int)ptr, ret); */
-		break;
-
-	case NVMAP_IOC_PIN_MULT:
-		ph = ptr;
-		if (ph->count > 1) {
-/*			hexdump((void *)ph->handles, ph->count * sizeof(unsigned long *));
-			wrap_log("# PinMultiple(0x%x, %d) = %p\n", ph->handles, ph->count, ph->addr);
-			hexdump((void *)ph->addr, ph->count * sizeof(unsigned long *)); */
-		} else
-/*			wrap_log("# PinSingle(0x%x) = %p\n", ph->handles, ph->addr); */
-		break;
-
-	default:
-		;
-/*		wrap_log(" = %d\n", ret); */
-	}
 #ifdef LOG_NVMAP_IOCTL
 	wrap_log(" = %d\n", ret);
 #endif
+
+	switch (request) {
+	case NVMAP_IOC_CREATE:
+		ch = ptr;
+#ifdef LOG_NVMAP_IOCTL
+		wrap_log("# ch.handle = 0x%x\n", ch->handle);
+#endif
+		break;
+
+#if 0
+	case NVMAP_IOC_PIN_MULT:
+		ph = ptr;
+		if (ph->count > 1) {
+			hexdump((void *)ph->handles, ph->count * sizeof(unsigned long *));
+			wrap_log("# PinMultiple(0x%x, %d) = %p\n", ph->handles, ph->count, ph->addr);
+			hexdump((void *)ph->addr, ph->count * sizeof(unsigned long *));
+		} else
+			wrap_log("# PinSingle(0x%x) = %p\n", ph->handles, ph->addr);
+		break;
+#endif
+
+	default:
+		;
+	}
 }
 
 static struct nvhost_submit_hdr_ext hdr;
