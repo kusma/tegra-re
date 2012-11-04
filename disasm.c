@@ -30,6 +30,15 @@ uint64_t read64(FILE *fp)
 	return ret;
 }
 
+float decode_fp32(uint32_t bits)
+{
+	union {
+		uint32_t bits;
+		float value;
+	} u = { bits };
+	return u.value;
+}
+
 float decode_fp20(uint32_t bits)
 {
 	/* FP20 is 1.6.13 - bias 31
@@ -222,7 +231,8 @@ void disasm_fp(FILE *fp)
 {
 	int i;
 	uint32_t hash, magic;
-	uint32_t offset, len;
+	uint32_t consts_offset, consts_len;
+	uint32_t bin_offset, bin_len;
 	char buf[8];
 
 	hash = read32(fp);
@@ -237,23 +247,35 @@ void disasm_fp(FILE *fp)
 		exit(1);
 	}
 
+	fseek(fp, 0xd8, SEEK_SET);
+	/* strange, offset is stored in words, while len is stored in bytes */
+	consts_offset = read32(fp) * 4;
+	consts_len = read32(fp);
+	printf("constants at %x..%x\n", consts_offset,
+	    consts_offset + consts_len);
+
+	fseek(fp, consts_offset, SEEK_SET);
+	for (i = 0; i < consts_len; i += 4)
+		printf("const[%d]: %f\n", i, decode_fp32(read32(fp)));
+
+
 	fseek(fp, 0xe8, SEEK_SET);
 	/* strange, offset is stored in words, while len is stored in bytes */
-	offset = read32(fp) * 4;
-	len = read32(fp);
-	printf("code at %x..%x\n", offset, offset + len);
+	bin_offset = read32(fp) * 4;
+	bin_len = read32(fp);
+	printf("code at %x..%x\n", bin_offset, bin_offset + bin_len);
 
-	fseek(fp, offset, SEEK_SET);
+	fseek(fp, bin_offset, SEEK_SET);
 	if (magic == 0x26836d2f) {
 		fread(buf, 1, 8, fp);
 		if (strncmp(buf, "AR20-BIN", 8)) {
 			fprintf(stderr, "wrong header: '%s'\n", buf);
 			exit(1);
 		}
-		fseek(fp, offset + 16, SEEK_SET);
+		fseek(fp, bin_offset + 16, SEEK_SET);
 	}
 
-	for (i = 16; i < len; i += 4) {
+	for (i = 16; i < bin_len; i += 4) {
 		uint32_t cmd = read32(fp);
 		/* printf("cmd: %08x\n", cmd); */
 		if ((cmd & 0xf0000000) == 0x20000000 ||
@@ -268,7 +290,7 @@ void disasm_fp(FILE *fp)
 				}
 				printf("found ALU code at %x,"
 				    " %d instruction words\n",
-				    offset + i + 4, count / 8);
+				    bin_offset + i + 4, count / 8);
 				disasm_frag_alu(fp, count / 8);
 			} else if ((cmd & 0x0fff0000) == 0x06040000) {
 				if (count % 2) {
@@ -279,7 +301,7 @@ void disasm_fp(FILE *fp)
 				}
 				printf("found LUT code at %x,"
 				    " %d instruction words\n",
-				    offset + i + 4, count / 2);
+				    bin_offset + i + 4, count / 2);
 				disasm_frag_lut(fp, count / 2);
 			} else {
 				printf("unknown upload of %d words to %x\n",
