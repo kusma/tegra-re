@@ -71,7 +71,10 @@ float decode_fp20(uint32_t bits)
 
 float decode_fix10(uint32_t bits)
 {
-	return (bits & 0x3ff) / 256.0f;
+	bits &= 0x3ff;
+	if (bits & (1 << 9))
+		return -(((bits - 1) ^ 0x3ff) / 256.0f);
+	return bits / 256.0f;
 }
 
 uint64_t embedded_consts;
