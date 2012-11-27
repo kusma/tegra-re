@@ -302,6 +302,41 @@ void disasm_frag_lut(FILE *fp, int count)
 	}
 }
 
+void disasm_frag_tex(FILE *fp, int count)
+{
+	int i;
+	for (i = 0; i < count; ++i) {
+		uint32_t word = read32(fp);
+		int op = (word >> 8) & 15;
+		int sampler = word & 15;
+		const char *opcodes[] = {
+			"??0", /* 0 */
+			"??1", /* 1 */
+			"??2", /* 2 */
+			"??3", /* 3 */
+			"TEX", /* 4 */
+			"??5", /* 5 */
+			"??6", /* 6 */
+			"??7", /* 7 */
+			"??8", /* 8 */
+			"??9", /* 9 */
+			"?10", /* 10 */
+			"?11", /* 11 */
+			"?12", /* 12 */
+			"?13", /* 13 */
+			"?14", /* 14 */
+			"?15", /* 15 */
+		};
+		printf("%08"PRIx32" ", word);
+		if (!op) {
+			printf("NOP\n");
+			continue;
+		}
+
+		printf("%s s%d\n", opcodes[op], sampler);
+	}
+}
+
 void disasm_fp(FILE *fp)
 {
 	int i;
@@ -378,6 +413,11 @@ void disasm_fp(FILE *fp)
 				    " %d instruction words\n",
 				    bin_offset + i + 4, count / 2);
 				disasm_frag_lut(fp, count / 2);
+			} else if ((cmd & 0x0fff0000) == 0x07010000) {
+				printf("found TEX code (0x701) at %x,"
+				    " %d instruction words\n",
+				    bin_offset + i + 4, count);
+				disasm_frag_tex(fp, count);
 			} else {
 				printf("unknown upload of %d words to %x\n",
 				    count, (cmd >> 16) & 0xfff);
