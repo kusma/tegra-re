@@ -80,16 +80,60 @@ float decode_fix10(uint32_t bits)
 uint64_t embedded_consts;
 static int embedded_consts_used;
 
+const char *decode_operand_base(uint64_t bits)
+{
+	static char buf[64];
+	char *dst = buf;
+
+	int x10 = (bits >> 3) & 1;
+	/* bit4: unknown */
+	/* bit5: last bit of offset */
+	int reg = (bits >> 5) & 63; /* bit 5..10 */
+	int uni = (bits >> 11) & 1;
+
+	switch (bits & ~7) {
+	case 0x7c8: return "#0";
+	case 0x7e8: return "#1";
+	case 0x7e9: return "#2";
+
+	/* these needs bit12: */
+	case 0x200: return "vPos.x";
+	case 0x240: return "vPos.y";
+	case 0x2c8: return "vFace";
+	}
+
+	if (reg >= 56) {
+		if (reg >= 62) {
+			/* r28-r30 = embedded constants, r31 = 0 or 1 */
+			if (reg == 62)
+				dst += sprintf(dst, "#0???");
+			else if (reg == 63)
+				dst += sprintf(dst, "#1???");
+		} else {
+			int offset = 4 + (reg & 7) * 10;
+			dst += sprintf(dst, "#%f", x10 ?
+			    decode_fix10(embedded_consts >> offset) :
+			    decode_fp20(embedded_consts >> offset));
+			embedded_consts_used = 1;
+		}
+	} else {
+		/* normal registers */
+		dst += sprintf(dst, "%c%d%s",
+		    uni ? 'c' : 'r',
+		    x10 ? reg : reg >> 1,
+		    x10 ? "_half" : "");
+	}
+
+	return buf;
+}
+
 const char *decode_operand(uint64_t bits)
 {
-	static char buf[32];
+	static char buf[64];
 	char *dst = buf;
 	int s2x = (bits >> 0) & 1;
 	int neg = (bits >> 1) & 1;
 	int abs = (bits >> 2) & 1;
-	int x10 = (bits >> 3) & 1;
-	int reg = (bits >> 6) & 31; /* bit 6..10 */
-	int uni = (bits >> 11) & 1;
 
 	if (neg) {
 		*dst = '-';
@@ -101,23 +145,8 @@ const char *decode_operand(uint64_t bits)
 		dst += 4;
 	}
 
-	if (reg >= 28) {
-		/* r28-r30 = embedded constants, r31 = 0 or 1 */
-		if (reg != 31) {
-			int offset = 4 + ((bits >> 5) & 7) * 10;
-			dst += sprintf(dst, "#%f", x10 ?
-			    decode_fix10(embedded_consts >> offset) :
-			    decode_fp20(embedded_consts >> offset));
-			embedded_consts_used = 1;
-		} else
-			dst += sprintf(dst, "#%d", (int)(bits >> 5) & 1);
-	} else {
-		/* normal registers */
-		dst += sprintf(dst, "%c%c%d",
-		    uni ? 'u' : 'v',
-		    x10 ? 'x' : 'r',
-		    reg);
-	}
+
+	dst += sprintf(dst, "%s", decode_operand_base(bits));
 
 	if (s2x)
 		dst += sprintf(dst, " * #2");
@@ -126,7 +155,6 @@ const char *decode_operand(uint64_t bits)
 		*dst = ')';
 		++dst;
 	}
-
 
 	return buf;
 }
@@ -212,9 +240,9 @@ void disasm_frag_alu_instr(uint64_t instr)
 	}
 
 	printf("%s, ", decode_rd((instr >> 12) & ((1 << 16) - 1)));
-	printf("%s, ", decode_operand(instr >> 0));
-	printf("%s, ", decode_operand(instr >> 51));
-	printf("%s\n", decode_operand(instr >> 38));
+	printf("%s, ", decode_operand((instr >>  0) & ((1 << 12) - 1)));
+	printf("%s, ", decode_operand((instr >> 51) & ((1 << 12) - 1)));
+	printf("%s\n", decode_operand((instr >> 38) & ((1 << 12) - 1)));
 }
 
 void disasm_frag_alu_instrs(const uint64_t instrs[4])
