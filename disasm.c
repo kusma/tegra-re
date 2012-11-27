@@ -101,8 +101,20 @@ const char *decode_operand_base(uint64_t bits)
 	case 0x2c8: return "vFace";
 	}
 
+	/* not seen */
+	if (bits & (1 << 4))
+		dst += sprintf(dst, "?4? ");
+
+	/* not seen */
+	if (!x10 && reg & 1)
+		dst += sprintf(dst, "?wat? ");
+
 	if (reg >= 56) {
 		if (reg >= 62) {
+			/* not seen */
+			if (x10)
+				dst += sprintf(dst, "?wut? ");
+
 			/* r28-r30 = embedded constants, r31 = 0 or 1 */
 			if (reg == 62)
 				dst += sprintf(dst, "#0???");
@@ -133,6 +145,7 @@ const char *decode_operand(uint64_t bits)
 	int s2x = (bits >> 0) & 1;
 	int neg = (bits >> 1) & 1;
 	int abs = (bits >> 2) & 1;
+	dst += sprintf(dst, "(0x%llx) ", bits);
 
 	if (neg) {
 		*dst = '-';
