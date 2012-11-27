@@ -131,22 +131,67 @@ const char *decode_operand(uint64_t bits)
 	return buf;
 }
 
-const char *decode_rd(uint64_t instr)
+const char *decode_rd(uint64_t bits)
 {
-	static char buf[32];
-	int offs = (instr >> 14) & 63; /* 14..19 */
-	int x10 = ((instr >> 14) & 1) != ((instr >> 13) & 1);
+	static char buf[64];
+	char *dst = buf;
+	int offs = (bits >> 2) & 63; /* 14..19 */
+	int x10 = ((bits >> 2) & 1) != ((bits >> 1) & 1);
+	int sat = (bits >> 12) & 1;
+	int pscale = (bits >> 13) & 3;
+
+	const char *pscale_str[4] = {
+		"", "_mul2", "_mul4", "_div2"
+	};
+
+	dst += sprintf(dst, "(0x%llx) ", bits);
+
+	switch (bits) {
+	case 0x262:
+		dst += sprintf(dst, "rKill");
+		return buf;
+
+	case 0x266:
+		dst += sprintf(dst, "rKill_nz");
+		return buf;
+
+	case 0x666:
+		dst += sprintf(dst, "rKill_z");
+		return buf;
+
+	case 0xe66:
+		dst += sprintf(dst, "rKill_ge");
+		return buf;
+
+	case 0xa66:
+		dst += sprintf(dst, "rKill_g");
+		return buf;
+	}
+
+	/* seen -- enable special registers? */
+	if (bits & 1)
+		printf("?12? ");
 
 	if (x10)
-		sprintf(buf, "x%d", offs);
-	else
-		sprintf(buf, "r%d", offs >> 1);
+		dst += sprintf(dst, "x%d", offs);
+	else {
+		/* seen, temp write ? */
+		if (offs & 1)
+			dst += sprintf(dst, "?14? ");
+
+		dst += sprintf(dst, "r%d", offs >> 1);
+	}
+
+	dst += sprintf(dst, "%s", pscale_str[pscale]);
+
+	if (sat)
+		dst += sprintf(dst, "_sat");
+
 	return buf;
 }
 
 void disasm_frag_alu_instr(uint64_t instr)
 {
-	char *sat;
 	int opcode;
 
 	printf(" %016"PRIx64" ", instr);
@@ -157,17 +202,16 @@ void disasm_frag_alu_instr(uint64_t instr)
 	}
 
 	opcode = (instr >> 30) & 0x3;
-	sat = (instr >> 24) & 1 ? "_SAT" : "";
 	switch (opcode) {
-	case 0x0: printf("FMA%s ", sat); break;
-	case 0x1: printf("MIN%s ", sat); break;
-	case 0x2: printf("MAX%s ", sat); break;
-	case 0x3: printf("CSEL%s ", sat); break;
+	case 0x0: printf("FMA "); break;
+	case 0x1: printf("MIN "); break;
+	case 0x2: printf("MAX "); break;
+	case 0x3: printf("CSEL "); break;
 	default:
 		printf("0x%x ", opcode);
 	}
 
-	printf("%s, ", decode_rd(instr));
+	printf("%s, ", decode_rd((instr >> 12) & ((1 << 16) - 1)));
 	printf("%s, ", decode_operand(instr >> 0));
 	printf("%s, ", decode_operand(instr >> 51));
 	printf("%s\n", decode_operand(instr >> 38));
