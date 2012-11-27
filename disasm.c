@@ -240,8 +240,71 @@ void disasm_frag_alu_instr(uint64_t instr)
 		printf("NOP\n");
 		return;
 	}
+#if 0
+	/* not seen */
+	if ((instr >> 20) & 1)
+		printf("?20? ");
 
-	opcode = (instr >> 30) & 0x3;
+	/* seen related to gl_FragCoord.z and discard and step? */
+	if ((instr >> 21) & 1)
+		printf("?21? ");
+
+	/* seen, probably +/- 1ULP or something... ? */
+	if ((instr >> 22) & 1)
+		printf("?22? ");
+
+	/* seen, related to gl_FragCoord.z and integer conversion? */
+	if ((instr >> 23) & 1)
+		printf("?23? ");
+
+	/* not seen */
+	if ((instr >> 27) & 1)
+		printf("?27? ");
+
+	/* seen, related to temp-read? */
+	if ((instr >> 28) & 1)
+		printf("?28? ");
+#endif
+	/* seen, temp-write? */
+	if ((instr >> 29) & 1)
+		printf("?29? ");
+
+	opcode = (instr >> 30) & 0x3; /* 30..31 */
+
+	/* not seen */
+	if ((instr >> 32) & 1)
+		printf("?32? ");
+	if ((instr >> 33) & 1)
+		printf("?33? ");
+
+	/* seen:
+	 * (rA + rC) * rB
+	 * rA * rB + rC * rB
+	 * rA * rB + rC * rC
+	 */
+	if ((instr >> 34) & 1)
+		printf("?34? ");
+
+	/* not seen */
+	if ((instr >> 35) & 1)
+		printf("?35? ");
+	if ((instr >> 36) & 1)
+		printf("?36? ");
+
+	/* seen:
+	 * rA * rB + rC * rC
+	 */
+	if ((instr >> 37) & 1)
+		printf("?37? ");
+
+	/* seen, var + float(gl_FrontFacing) */
+	if ((instr >> 50) & 1)
+		printf("?50? ");
+
+	/* not seen */
+	if ((instr >> 63) & 1)
+		printf("?63? ");
+
 	switch (opcode) {
 	case 0x0: printf("FMA "); break;
 	case 0x1: printf("MIN "); break;
@@ -251,9 +314,13 @@ void disasm_frag_alu_instr(uint64_t instr)
 		printf("0x%x ", opcode);
 	}
 
+	/* 12..29 */
 	printf("%s, ", decode_rd((instr >> 12) & ((1 << 16) - 1)));
+	/* 0..11 */
 	printf("%s, ", decode_operand((instr >>  0) & ((1 << 12) - 1)));
+	/* 51..62 */
 	printf("%s, ", decode_operand((instr >> 51) & ((1 << 12) - 1)));
+	/* 38..49 */
 	printf("%s\n", decode_operand((instr >> 38) & ((1 << 12) - 1)));
 }
 
@@ -263,8 +330,20 @@ void disasm_frag_alu_instrs(const uint64_t instrs[4])
 	embedded_consts = instrs[3];
 	embedded_consts_used = 0;
 	for (i = 0; i < 4; ++i) {
-		if (i == 3 && embedded_consts_used)
+		if (i == 3 && embedded_consts_used) {
+#if 0
+			int j;
+			for (j = 0; j < 3; ++j) {
+				int offset = 4 + j * 20;
+				printf("fp20[%d] = %f\n", j, decode_fp20(embedded_consts >> offset));
+			}
+			for (j = 0; j < 6; ++j) {
+				int offset = 4 + j * 10;
+				printf("fix10[%d] = %f\n", j, decode_fix10(embedded_consts >> offset));
+			}
+#endif
 			continue;
+		}
 
 		printf("%d: ", i);
 		disasm_frag_alu_instr(instrs[i]);
