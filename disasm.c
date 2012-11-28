@@ -308,6 +308,7 @@ void disasm_frag_tex(FILE *fp, int count)
 		uint32_t word = read32(fp);
 		int op = (word >> 8) & 15;
 		int sampler = word & 15;
+		int bias = (word >> 12) & 1;
 		const char *opcodes[] = {
 			"??0", /* 0 */
 			"??1", /* 1 */
@@ -332,7 +333,7 @@ void disasm_frag_tex(FILE *fp, int count)
 			continue;
 		}
 
-		printf("%s s%d\n", opcodes[op], sampler);
+		printf("%s%s s%d\n", opcodes[op], bias ? "_bias" : "", sampler);
 	}
 }
 
