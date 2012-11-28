@@ -94,7 +94,6 @@ const char *decode_operand_base(uint64_t bits)
 	switch (bits & ~7) {
 	case 0x7c8: return "#0";
 	case 0x7e8: return "#1";
-	case 0x7e9: return "#2";
 
 	/* these needs bit12: */
 	case 0x200: return "vPos.x";
