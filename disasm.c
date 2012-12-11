@@ -429,6 +429,31 @@ void disasm_frag_tex(FILE *fp, int count)
 	}
 }
 
+void disasm_vert(FILE *fp, int count)
+{
+	int i, j;
+	for (i = 0; i < count; ++i) {
+		uint32_t words[4] = {
+			read32(fp),
+			read32(fp),
+			read32(fp),
+			read32(fp)
+		};
+
+		for (j = 0; j < 4; ++j)
+			printf("%08"PRIx32, words[i]);
+		printf(": ");
+
+		printf("rX.%s%s%s%s",
+		    (words[3] >> 16 & 1) ? "x" : "",
+		    (words[3] >> 15 & 1) ? "y" : "",
+		    (words[3] >> 14 & 1) ? "z" : "",
+		    (words[3] >> 13 & 1) ? "w" : "");
+
+		printf(" = ???\n");
+	}
+}
+
 void disasm_fp(FILE *fp)
 {
 	int i;
@@ -510,6 +535,17 @@ void disasm_fp(FILE *fp)
 				    " %d instruction words\n",
 				    bin_offset + i + 4, count);
 				disasm_frag_tex(fp, count);
+			} else if ((cmd & 0x0fff0000) == 0x02060000) {
+				if (count % 4) {
+					fprintf(stderr,
+					    "count %d not dividable by 4\n",
+					    count);
+					exit(1);
+				}
+				printf("found vertex shader (0x206) at %x,"
+				    " %d instruction words\n",
+				    bin_offset + i + 4, count / 4);
+				disasm_vert(fp, count / 4);
 			} else {
 				printf("unknown upload of %d words to %x\n",
 				    count, (cmd >> 16) & 0xfff);
