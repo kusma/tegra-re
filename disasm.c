@@ -444,13 +444,31 @@ void disasm_vert(FILE *fp, int count)
 			printf("%08"PRIx32, words[i]);
 		printf(": ");
 
-		printf("rX.%s%s%s%s",
-		    (words[3] >> 16 & 1) ? "x" : "",
-		    (words[3] >> 15 & 1) ? "y" : "",
-		    (words[3] >> 14 & 1) ? "z" : "",
-		    (words[3] >> 13 & 1) ? "w" : "");
+		printf("??? ");
 
-		printf(" = ???\n");
+		printf("rD.%s%s%s%s, ",
+		    ((words[3] >> 16) & 1) ? "x" : "",
+		    ((words[3] >> 15) & 1) ? "y" : "",
+		    ((words[3] >> 14) & 1) ? "z" : "",
+		    ((words[3] >> 13) & 1) ? "w" : "");
+
+		if ((words[1] >> 7) & 1)
+			printf("-");
+		printf("rA.%c%c%c%c, ",
+		    "xyzw"[(words[1] >> 5) & 3],
+		    "xyzw"[(words[1] >> 3) & 3],
+		    "xyzw"[(words[1] >> 1) & 3],
+		    "xyzw"[((words[1] & 1) << 1) | (words[2] >> 31)]);
+
+		if ((words[2] >> 22) & 1)
+			printf("-");
+		printf("rB.%c%c%c%c, ",
+		    "xyzw"[(words[2] >> 20) & 3],
+		    "xyzw"[(words[2] >> 18) & 3],
+		    "xyzw"[(words[2] >> 16) & 3],
+		    "xyzw"[(words[2] >> 14) & 3]);
+
+		printf("\n");
 	}
 }
 
