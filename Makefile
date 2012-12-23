@@ -15,7 +15,7 @@ compiler: compiler.c
 	gcc $(CPPFLAGS) $(CFLAGS) $^ -o $@ $(LDFLAGS) -lcgdrv
 
 clean:
-	rm -f pbuffer-test pbuffer-teste-gles1 standalone-test wrap.o compiler-wrap.o hook.o nvmap.o nvhost.o
+	rm -f pbuffer-test window-test standalone-test wrap.o compiler-wrap.o hook.o nvmap.o nvhost.o
 
 %.frag.cgbin:%.frag.glsl
 	"$(CGC)" -profile ar20fp -ogles -o "$@" "$<"
