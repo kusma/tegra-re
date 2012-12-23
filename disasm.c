@@ -80,7 +80,7 @@ float decode_fix10(uint32_t bits)
 uint64_t embedded_consts;
 static int embedded_consts_used;
 
-const char *decode_operand_base(uint64_t bits)
+const char *decode_operand_base(uint64_t bits, int xreg)
 {
 	static char buf[64];
 	char *dst = buf;
@@ -94,11 +94,15 @@ const char *decode_operand_base(uint64_t bits)
 	switch (bits & ~7) {
 	case 0x7c8: return "#0";
 	case 0x7e8: return "#1";
+	}
 
-	/* these needs bit12: */
-	case 0x200: return "vPos.x";
-	case 0x240: return "vPos.y";
-	case 0x2c8: return "vFace";
+	if (xreg) {
+		/* extended registers */
+		switch (bits & ~7) {
+		case 0x200: return "vPos.x";
+		case 0x240: return "vPos.y";
+		case 0x2c8: return "vFace";
+		}
 	}
 
 	/* not seen */
@@ -138,7 +142,7 @@ const char *decode_operand_base(uint64_t bits)
 	return buf;
 }
 
-const char *decode_operand(uint64_t bits)
+const char *decode_operand(uint64_t bits, int xreg)
 {
 	static char buf[64];
 	char *dst = buf;
@@ -158,7 +162,7 @@ const char *decode_operand(uint64_t bits)
 	}
 
 
-	dst += sprintf(dst, "%s", decode_operand_base(bits));
+	dst += sprintf(dst, "%s", decode_operand_base(bits, xreg));
 
 	if (s2x)
 		dst += sprintf(dst, " * #2");
@@ -175,10 +179,10 @@ const char *decode_rd(uint64_t bits)
 {
 	static char buf[64];
 	char *dst = buf;
-	int offs = (bits >> 2) & 63; /* 14..19 */
-	int x10 = ((bits >> 2) & 1) != ((bits >> 1) & 1);
-	int sat = (bits >> 12) & 1;
-	int pscale = (bits >> 13) & 3;
+	int offs = (bits >> 1) & 63; /* 14..19 */
+	int x10 = ((bits >> 1) & 1) != ((bits >> 0) & 1);
+	int sat = (bits >> 11) & 1;
+	int pscale = (bits >> 12) & 3;
 
 	const char *pscale_str[4] = {
 		"", "_mul2", "_mul4", "_div2"
@@ -208,10 +212,6 @@ const char *decode_rd(uint64_t bits)
 		return buf;
 	}
 
-	/* seen -- enable special registers? */
-	if (bits & 1)
-		printf("?12? ");
-
 	if (x10)
 		dst += sprintf(dst, "x%d", offs);
 	else {
@@ -232,7 +232,7 @@ const char *decode_rd(uint64_t bits)
 
 void disasm_frag_alu_instr(uint64_t instr)
 {
-	int opcode;
+	int opcode, xreg;
 
 	printf(" %016"PRIx64" ", instr);
 
@@ -314,14 +314,16 @@ void disasm_frag_alu_instr(uint64_t instr)
 		printf("0x%x ", opcode);
 	}
 
-	/* 12..29 */
-	printf("%s, ", decode_rd((instr >> 12) & ((1 << 16) - 1)));
+	xreg = (instr >> 12) & 1;
+
+	/* 13..29 */
+	printf("%s, ", decode_rd((instr >> 13) & ((1 << 15) - 1)));
 	/* 0..11 */
-	printf("%s, ", decode_operand((instr >>  0) & ((1 << 12) - 1)));
+	printf("%s, ", decode_operand((instr >>  0) & ((1 << 12) - 1), xreg));
 	/* 51..62 */
-	printf("%s, ", decode_operand((instr >> 51) & ((1 << 12) - 1)));
+	printf("%s, ", decode_operand((instr >> 51) & ((1 << 12) - 1), xreg));
 	/* 38..49 */
-	printf("%s\n", decode_operand((instr >> 38) & ((1 << 12) - 1)));
+	printf("%s\n", decode_operand((instr >> 38) & ((1 << 12) - 1), xreg));
 }
 
 void disasm_frag_alu_instrs(const uint64_t instrs[4])
