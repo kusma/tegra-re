@@ -4,3 +4,5 @@
 compiler
 disasm
 pbuffer-test
+standalone-test
+window-test
