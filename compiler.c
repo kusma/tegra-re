@@ -111,6 +111,11 @@ int main(int argc, char *argv[])
 		}
 
 		fp = fopen(arg, "r");
+		if (!fp) {
+			perror("fopen");
+			exit(1);
+		}
+
 #ifndef WANT_STABLE_ADDRS
 		src_alloc = 100;
 		src = malloc(src_alloc);
