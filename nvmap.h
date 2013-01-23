@@ -13,5 +13,6 @@ int nvmap_write(nvmap_handle_t h, size_t offset, const void *src, size_t size);
 int nvmap_read(void *dst, nvmap_handle_t h, size_t offset, size_t size);
 void *nvmap_mmap(nvmap_handle_t h, size_t offset, size_t length, int flags);
 int nvmap_cache(void *ptr, nvmap_handle_t handle, size_t len, int op);
+int nvmap_param(nvmap_handle_t handle, int param, unsigned long *result);
 
 #endif /* NVMAP_H */

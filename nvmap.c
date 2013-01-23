@@ -104,3 +104,18 @@ int nvmap_cache(void *ptr, nvmap_handle_t handle, size_t len, int op)
 	co.op = op;
 	return ioctl(nvmap_fd, NVMAP_IOC_CACHE, &co);
 }
+
+int nvmap_param(nvmap_handle_t handle, int param, unsigned long *result)
+{
+	struct nvmap_handle_param hp;
+	hp.handle = handle;
+	hp.param = param;
+
+	if (ioctl(nvmap_fd, NVMAP_IOC_PARAM, &hp) < 0)
+		return -1;
+
+	if (result)
+		*result = hp.result;
+
+	return 0;
+}
