@@ -194,6 +194,7 @@ static int nvmap_ioctl_pre(int fd, int request, ...)
 	struct nvmap_rw_handle *rwh;
 	struct nvmap_map_caller *mc;
 	struct nvmap_handle_param *gp;
+	struct nvmap_pin_handle *ph;
 
 	void *ptr = NULL;
 	if (_IOC_SIZE(request)) {
@@ -224,7 +225,19 @@ static int nvmap_ioctl_pre(int fd, int request, ...)
 
 	case NVMAP_IOC_PIN_MULT:
 #ifdef LOG_NVMAP_IOCTL
-		wrap_log("# ioctl(%d (/dev/nvmap), NVMAP_IOC_PIN_MULT, ...)", fd);
+		ph = ptr;
+		if (ph->count > 1) {
+			int i;
+			hexdump((void *)ph->handles, ph->count * sizeof(unsigned long *));
+			wrap_log("# unsigned long pin_handles[%d] = {\n# \t", ph->count);
+			for (i = 0; i < ph->count; ++i)
+				wrap_log("%s0x%lx", i ? ", " : "", ((unsigned long *)ph->handles)[i]);
+			wrap_log("};\n# struct nvmap_pin_handle ph = {\n# \t.handles = pin_handles;\n");
+			hexdump((void *)ph->addr, ph->count * sizeof(unsigned long *));
+		} else
+			wrap_log("# struct nvmap_pin_handle ph = {\n# \t.handles = 0x%lx;\n");
+		wrap_log("# \t.count = %d;\n# };\n", ph->count);
+		wrap_log("# ioctl(%d, NVMAP_IOC_PIN_MULT, &ph)", fd);
 #endif
 		break;
 
@@ -317,17 +330,17 @@ static int nvmap_ioctl_post(int ret, int fd, int request, ...)
 #endif
 		break;
 
-#if 0
 	case NVMAP_IOC_PIN_MULT:
+#ifdef LOG_NVMAP_IOCTL
 		ph = ptr;
 		if (ph->count > 1) {
-			hexdump((void *)ph->handles, ph->count * sizeof(unsigned long *));
-			wrap_log("# PinMultiple(0x%x, %d) = %p\n", ph->handles, ph->count, ph->addr);
-			hexdump((void *)ph->addr, ph->count * sizeof(unsigned long *));
+			int i;
+			for (i = 0; i < ph->count; ++i)
+				wrap_log("# ((unsigned long *)ph.addr)[%d] = 0x%lx;\n", i, ((unsigned long *)ph->addr)[i]);
 		} else
-			wrap_log("# PinSingle(0x%x) = %p\n", ph->handles, ph->addr);
-		break;
+			wrap_log("# ph.addr = 0x%lx;\n", ph->addr);
 #endif
+		break;
 
 	default:
 		;
