@@ -356,7 +356,7 @@ static void set_submit(struct nvhost_submit_hdr_ext *hdr)
 
 	cmdbufs = realloc(cmdbufs, sizeof(*cmdbufs) * hdr->num_cmdbufs);
 	num_cmdbufs = 0;
-	relocs = realloc(relocs, sizeof(*relocs) * hdr->num_cmdbufs);
+	relocs = realloc(relocs, sizeof(*relocs) * hdr->num_relocs);
 	num_relocs = 0;
 }
 
