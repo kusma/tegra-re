@@ -519,10 +519,14 @@ void disasm_fp(FILE *fp)
 			fprintf(stderr, "wrong header: '%s'\n", buf);
 			exit(1);
 		}
-		fseek(fp, bin_offset + 16, SEEK_SET);
+
+		/* adjust offset / len */
+		bin_offset += 16;
+		bin_len -= 16;
+		fseek(fp, bin_offset, SEEK_SET);
 	}
 
-	for (i = 16; i < bin_len; i += 4) {
+	for (i = 0; i < bin_len; i += 4) {
 		uint32_t cmd = read32(fp);
 		/* printf("cmd: %08x\n", cmd); */
 		if ((cmd & 0xf0000000) == 0x20000000 ||
@@ -580,6 +584,11 @@ void disasm_fp(FILE *fp)
 			    (cmd >> 16) & 0xfff, cmd & 0xffff);
 		else
 			printf("unknown cmd %08x\n", cmd);
+	}
+
+	if (ftell(fp) != bin_offset + bin_len) {
+		fprintf(stderr, "wrong end!\n");
+		exit(1);
 	}
 }
 
