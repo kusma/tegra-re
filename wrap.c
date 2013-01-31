@@ -121,7 +121,7 @@ void hexdump_handle(long handle, int offset, int size)
 
 #include <nvhost_ioctl.h>
 #include <stdint.h>
-void dump_cmdbuf(struct nvhost_cmdbuf *cmdbuf, struct nvhost_reloc *relocs, int num_relocs)
+void dump_cmdbuf(struct nvhost_cmdbuf *cmdbuf, struct nvhost_reloc *relocs, struct nvhost_reloc_shift *relocshifts, int num_relocs)
 {
 	int err;
 	uint32_t *buf;
@@ -168,7 +168,7 @@ void dump_cmdbuf(struct nvhost_cmdbuf *cmdbuf, struct nvhost_reloc *relocs, int 
 					break;
 
 			if (j < num_relocs)
-				wrap_log("%08X\n# reloc %x@%x\n", buf[i], relocs[j].target, relocs[j].target_offset);
+				wrap_log("%08X\n# reloc %x@%x >> %d\n", buf[i], relocs[j].target, relocs[j].target_offset, relocshifts[j].shift);
 			else if (buf[i] == 0xdeadbeef)
 				wrap_log("%08X\n# reloc missing!\n", buf[i]);
 			else
@@ -348,7 +348,8 @@ static int nvmap_ioctl_post(int ret, int fd, int request, ...)
 }
 
 static struct nvhost_submit_hdr_ext hdr;
-static int num_relocshifts;
+static struct nvhost_reloc_shift *relocshifts;
+static int hdr_num_relocshifts, num_relocshifts;
 static struct nvhost_cmdbuf *cmdbufs;
 static int num_cmdbufs;
 static struct nvhost_reloc *relocs;
@@ -371,6 +372,13 @@ static void set_submit(struct nvhost_submit_hdr_ext *hdr)
 	num_cmdbufs = 0;
 	relocs = realloc(relocs, sizeof(*relocs) * hdr->num_relocs);
 	num_relocs = 0;
+
+	if (hdr->submit_version >= NVHOST_SUBMIT_VERSION_V2)
+		hdr_num_relocshifts = hdr->num_relocs;
+
+	relocshifts = realloc(relocshifts, sizeof(*relocshifts) * hdr_num_relocshifts);
+	memset(relocshifts, 0, sizeof(*relocshifts) * hdr_num_relocshifts);
+	num_relocshifts = 0;
 }
 
 static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
@@ -411,9 +419,6 @@ static int nvhost_gr3d_ioctl_pre(int fd, int request, ...)
 
 	case NVHOST_IOCTL_CHANNEL_SUBMIT_EXT:
 		memcpy(&hdr, ptr, sizeof(hdr));
-		if (hdr.submit_version >= NVHOST_SUBMIT_VERSION_V2)
-			num_relocshifts = hdr.num_relocs;
-
 		wrap_log("# ioctl(%d (/dev/nvhost-gr3d), NVHOST_IOCTL_CHANNEL_SUBMIT_EXT, ...)", fd);
 
 		set_submit(&hdr);
@@ -464,10 +469,12 @@ static void inspect_cmdbufs(void)
 		return;
 
 	for (i = 0; i < num_cmdbufs; ++i)
-		dump_cmdbuf(&cmdbufs[i], relocs, num_relocs);
+		dump_cmdbuf(&cmdbufs[i], relocs, relocshifts, num_relocs);
+
 	num_cmdbufs = 0;
 	num_relocs = 0;
 }
+
 ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 {
 	const unsigned char *curr = ptr;
@@ -484,7 +491,7 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 #endif
 
 	while (1) {
-		if (!hdr.num_cmdbufs && !hdr.num_relocs && !num_relocshifts && !hdr.num_waitchks) {
+		if (!hdr.num_cmdbufs && !hdr.num_relocs && !hdr_num_relocshifts && !hdr.num_waitchks) {
 
 			inspect_cmdbufs();
 
@@ -562,22 +569,25 @@ ssize_t nvhost_gr3d_write_pre(int fd, const void *ptr, size_t count)
 			curr += sizeof(struct nvhost_waitchk) * hdr.num_waitchks;
 			remaining -= sizeof(struct nvhost_waitchk) * hdr.num_waitchks;
 			hdr.num_waitchks = 0;
-		} else if (num_relocshifts) {
+		} else if (hdr_num_relocshifts) {
 
 			if (remaining < sizeof(struct nvhost_reloc_shift))
 				break;
 
-			wrap_log("# reloc_shifts (%d) not supported!\n", num_relocshifts);
-			curr += sizeof(struct nvhost_reloc_shift) * num_relocshifts;
-			remaining -= sizeof(struct nvhost_reloc_shift) * num_relocshifts;
-			num_relocshifts = 0;
+			memcpy(relocshifts + num_relocshifts, curr, sizeof(*relocshifts));
+
+			wrap_log("# reloc_shift: %d\n", relocshifts[num_relocshifts].shift);
+			curr += sizeof(struct nvhost_reloc_shift);
+			remaining -= sizeof(struct nvhost_reloc_shift);
+			--hdr_num_relocshifts;
+			++num_relocshifts;
 		} else {
 			wrap_log("# inconsistent state\n");
 			exit(1);
 		}
 	}
 
-	if (!hdr.num_cmdbufs && !hdr.num_relocs && !num_relocshifts && !hdr.num_waitchks)
+	if (!hdr.num_cmdbufs && !hdr.num_relocs && !hdr_num_relocshifts && !hdr.num_waitchks)
 		inspect_cmdbufs();
 }
 
