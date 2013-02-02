@@ -213,7 +213,7 @@ const char *decode_rd(uint64_t bits)
 	}
 
 	if (x10)
-		dst += sprintf(dst, "x%d", offs);
+		dst += sprintf(dst, "r%d_half", offs);
 	else {
 		/* seen, temp write ? */
 		if (offs & 1)
